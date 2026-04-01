@@ -361,6 +361,14 @@ aside.collapsed .new-chat-btn { justify-content: center; }
           <label class="flabel" for="apiBaseInput">Backend API URL</label>
           <input class="finput" id="apiBaseInput" placeholder="http://127.0.0.1:8000" type="text" value="http://127.0.0.1:8000">
         </div>
+        <div class="fg" style="min-width:170px">
+          <label class="flabel" for="refinementSelect">Refinement</label>
+          <select class="fselect" id="refinementSelect">
+            <option value="brief" selected>Brief</option>
+            <option value="bullet">Bullet</option>
+            <option value="detailed">Detailed</option>
+          </select>
+        </div>
         <div class="backend-status checking" id="backendStatus">Checking backend</div>
       </div>
       <div class="route-btn-wrap">
@@ -383,12 +391,21 @@ aside.collapsed .new-chat-btn { justify-content: center; }
       <div class="route-path-card">
         <div class="route-path-label">Route Path</div>
         <div class="route-model" id="routeModel">Awaiting request</div>
-        <div class="route-desc" id="routeDescription">Short prompts route to Mistral Small 24.02. Longer prompts route to Llama 3.1 8B.</div>
+        <div class="route-desc" id="routeDescription">The ML router will extract signals, estimate uncertainty, optionally consult Qwen when the prompt is ambiguous, and choose the final Bedrock model.</div>
         <div class="latency-row"><span class="key">Latency</span><span class="val" id="latencyValue">—</span></div>
         <div class="latency-bar"><div class="latency-fill" id="latencyFill" style="width:0%"></div></div>
         <div class="route-debug">
+          <div class="latency-row"><span class="key">Task</span><span class="val" id="taskValue">—</span></div>
+          <div class="latency-row"><span class="key">Complexity</span><span class="val" id="complexityValue">—</span></div>
+          <div class="latency-row"><span class="key">Uncertainty</span><span class="val" id="uncertaintyValue">—</span></div>
+          <div class="latency-row"><span class="key">Prefilter</span><span class="val" id="prefilterValue">—</span></div>
+          <div class="latency-row"><span class="key">Qwen</span><span class="val" id="qwenValue">—</span></div>
+          <div class="latency-row"><span class="key">Refinement</span><span class="val" id="refinementValue">—</span></div>
+          <div class="latency-row"><span class="key">Path</span><span class="val" id="routePathValue">—</span></div>
+          <div class="latency-row"><span class="key">Tier</span><span class="val" id="tierValue">—</span></div>
           <div class="latency-row"><span class="key">Request ID</span><span class="val" id="requestIdValue">—</span></div>
           <div class="latency-row"><span class="key">Tokens</span><span class="val" id="tokenValue">—</span></div>
+          <div class="latency-row"><span class="key">Cost</span><span class="val" id="costValue">—</span></div>
           <div class="latency-row"><span class="key">Format</span><span class="val" id="requestFormatValue">—</span></div>
         </div>
       </div>
@@ -458,70 +475,70 @@ aside.collapsed .new-chat-btn { justify-content: center; }
     <div class="models-grid">
       <div class="model-card">
         <div style="display:flex;align-items:center;gap:12px">
-          <div class="model-icon" style="background:#fff3e0">🌀</div>
-          <div><div class="model-name">Mistral Small 24.02</div><div class="model-provider">Mistral AI via Bedrock</div></div>
+          <div class="model-icon" style="background:#fff3e0">⚡</div>
+          <div><div class="model-name">Amazon Nova Micro</div><div class="model-provider">Amazon Bedrock</div></div>
         </div>
         <div class="mbadge bg">✓ Active</div>
         <div class="model-stats">
-          <div class="mstat"><strong>Small</strong>Tier</div>
-          <div class="mstat"><strong>32K</strong>Context</div>
-          <div class="mstat"><strong>Low Cost</strong>Route</div>
+          <div class="mstat"><strong>Cheap</strong>Tier</div>
+          <div class="mstat"><strong>200K+</strong>Context</div>
+          <div class="mstat"><strong>Factual</strong>Route</div>
         </div>
         <div class="model-actions"><button class="btn-sm btn-primary">Configure</button><button class="btn-sm btn-outline">Details</button></div>
       </div>
 
       <div class="model-card">
         <div style="display:flex;align-items:center;gap:12px">
-          <div class="model-icon" style="background:#e0f2fe">🦙</div>
-          <div><div class="model-name">Llama 3.1 8B</div><div class="model-provider">Meta AI via Bedrock</div></div>
+          <div class="model-icon" style="background:#e0f2fe">🌀</div>
+          <div><div class="model-name">Mistral</div><div class="model-provider">Mistral AI via Bedrock</div></div>
         </div>
         <div class="mbadge bg">✓ Stable</div>
         <div class="model-stats">
-          <div class="mstat"><strong>8B</strong>Params</div>
-          <div class="mstat"><strong>128K</strong>Context</div>
-          <div class="mstat"><strong>Higher Quality</strong>Route</div>
+          <div class="mstat"><strong>Cheap</strong>Tier</div>
+          <div class="mstat"><strong>General</strong>Route</div>
+          <div class="mstat"><strong>Bedrock</strong>Native</div>
         </div>
         <div class="model-actions"><button class="btn-sm btn-primary">Configure</button><button class="btn-sm btn-outline">Details</button></div>
       </div>
 
       <div class="model-card">
         <div style="display:flex;align-items:center;gap:12px">
-          <div class="model-icon" style="background:#dcfce7">🤖</div>
-          <div><div class="model-name">GPT-4o</div><div class="model-provider">OpenAI</div></div>
+          <div class="model-icon" style="background:#dcfce7">🪶</div>
+          <div><div class="model-name">Claude Haiku 4.5</div><div class="model-provider">Anthropic via Bedrock</div></div>
         </div>
         <div class="mbadge bg">✓ Stable</div>
         <div class="model-stats">
-          <div class="mstat"><strong>—</strong>Params</div>
-          <div class="mstat"><strong>128K</strong>Context</div>
-          <div class="mstat"><strong>~42ms</strong>Speed</div>
+          <div class="mstat"><strong>Mid</strong>Tier</div>
+          <div class="mstat"><strong>Reasoning</strong>Route</div>
+          <div class="mstat"><strong>Fallback</strong>Safety</div>
         </div>
         <div class="model-actions"><button class="btn-sm btn-primary">Configure</button><button class="btn-sm btn-outline">Details</button></div>
       </div>
 
       <div class="model-card">
         <div style="display:flex;align-items:center;gap:12px">
-          <div class="model-icon" style="background:#f3e8ff">✦</div>
-          <div><div class="model-name">Claude 3 Sonnet</div><div class="model-provider">Anthropic</div></div>
+          <div class="model-icon" style="background:#f3e8ff">⌘</div>
+          <div><div class="model-name">Amazon Nova Pro</div><div class="model-provider">Amazon Bedrock</div></div>
         </div>
         <div class="mbadge bg">✓ Stable</div>
         <div class="model-stats">
-          <div class="mstat"><strong>—</strong>Params</div>
-          <div class="mstat"><strong>200K</strong>Context</div>
-          <div class="mstat"><strong>~39ms</strong>Speed</div>
+          <div class="mstat"><strong>Code</strong>Tier</div>
+          <div class="mstat"><strong>Structured</strong>Output</div>
+          <div class="mstat"><strong>Bedrock</strong>Native</div>
         </div>
         <div class="model-actions"><button class="btn-sm btn-primary">Configure</button><button class="btn-sm btn-outline">Details</button></div>
       </div>
 
       <div class="model-card">
         <div style="display:flex;align-items:center;gap:12px">
-          <div class="model-icon" style="background:#fef9c3">💎</div>
-          <div><div class="model-name">Gemini 1.5 Pro</div><div class="model-provider">Google DeepMind</div></div>
+          <div class="model-icon" style="background:#fef9c3">✦</div>
+          <div><div class="model-name">Claude Sonnet 4.5</div><div class="model-provider">Anthropic via Bedrock</div></div>
         </div>
-        <div class="mbadge bb">⟳ Syncing</div>
+        <div class="mbadge bb">✓ Strong</div>
         <div class="model-stats">
-          <div class="mstat"><strong>—</strong>Params</div>
-          <div class="mstat"><strong>1M</strong>Context</div>
-          <div class="mstat"><strong>~55ms</strong>Speed</div>
+          <div class="mstat"><strong>Strong</strong>Tier</div>
+          <div class="mstat"><strong>Reasoning</strong>Route</div>
+          <div class="mstat"><strong>Baseline</strong>Cost</div>
         </div>
         <div class="model-actions"><button class="btn-sm btn-primary">Configure</button><button class="btn-sm btn-outline">Details</button></div>
       </div>
@@ -826,6 +843,10 @@ function persistApiBase() {
   return formatted;
 }
 
+function getRefinementSelection() {
+  return document.getElementById('refinementSelect')?.value || 'brief';
+}
+
 function updatePromptPlaceholder() {
   const promptEl = document.getElementById('promptInput');
   if (!promptEl) return;
@@ -864,20 +885,48 @@ function formatTokenSummary(debug) {
   return `${promptTokens ?? '—'} in / ${generationTokens ?? '—'} out`;
 }
 
+function formatCostSummary(debug) {
+  const estimatedCost = debug?.estimated_cost;
+  if (typeof estimatedCost !== 'number' || Number.isNaN(estimatedCost)) return '—';
+  return `$${estimatedCost.toFixed(6)}`;
+}
+
+function formatModelName(modelId) {
+  if (!modelId) return '—';
+  if (modelId.startsWith('amazon.nova-micro')) return 'Nova Micro';
+  if (modelId.startsWith('mistral.')) return 'Mistral';
+  if (modelId.includes('claude-haiku-4-5')) return 'Claude Haiku 4.5';
+  if (modelId.startsWith('amazon.nova-pro')) return 'Nova Pro';
+  if (modelId.includes('claude-sonnet-4-5')) return 'Claude Sonnet 4.5';
+  if (modelId.startsWith('qwen.')) return 'Qwen3 Next 80B';
+  return modelId;
+}
+
 function updateRouteCard(result, latencyMs) {
   const debug = result?.debug || {};
   const latency = Number.isFinite(latencyMs) ? `${latencyMs}ms` : '—';
   const fillWidth = Number.isFinite(latencyMs)
     ? `${Math.max(10, Math.min(100, Math.round((latencyMs / 600) * 100)))}%`
     : '0%';
+  const chosenModel = debug.invoked_model_id || result?.model_used || '';
 
-  document.getElementById('routeModel').textContent = debug.invoked_model_id || result?.model_used || '—';
+  document.getElementById('routeModel').textContent = formatModelName(chosenModel);
   document.getElementById('routeDescription').textContent =
-    debug.routing_reason || 'Short prompts route to Mistral Small 24.02. Longer prompts route to Llama 3.1 8B.';
+    debug.reason || debug.routing_reason || 'The ML router is waiting for a prompt.';
   document.getElementById('latencyValue').textContent = latency;
   document.getElementById('latencyFill').style.width = fillWidth;
+  document.getElementById('taskValue').textContent = debug.task || '—';
+  document.getElementById('complexityValue').textContent = debug.complexity || '—';
+  document.getElementById('uncertaintyValue').textContent =
+    typeof debug.uncertainty === 'number' ? debug.uncertainty.toFixed(2) : (debug.uncertainty || '—');
+  document.getElementById('prefilterValue').textContent = debug.prefilter || '—';
+  document.getElementById('qwenValue').textContent = debug.used_qwen ? 'Used' : 'Skipped';
+  document.getElementById('refinementValue').textContent = debug.refinement || '—';
+  document.getElementById('routePathValue').textContent = debug.decision_path || debug.route_path || '—';
+  document.getElementById('tierValue').textContent = debug.recommended_tier || '—';
   document.getElementById('requestIdValue').textContent = debug.request_id || '—';
   document.getElementById('tokenValue').textContent = formatTokenSummary(debug);
+  document.getElementById('costValue').textContent = formatCostSummary(debug);
   document.getElementById('requestFormatValue').textContent = debug.request_format || '—';
 }
 
@@ -938,6 +987,7 @@ async function checkBackendHealth() {
 
 async function submitPrompt() {
   const prompt = document.getElementById('promptInput')?.textContent.trim() || '';
+  const refinement = getRefinementSelection();
   const button = document.getElementById('routeButton');
 
   if (!prompt) {
@@ -957,6 +1007,14 @@ async function submitPrompt() {
       model_used: 'Routing...',
       debug: {
         routing_reason: 'The backend is evaluating the prompt and selecting the best model.',
+        task: 'pending',
+        complexity: 'pending',
+        uncertainty: 'pending',
+        prefilter: 'pending',
+        used_qwen: false,
+        refinement,
+        decision_path: 'pending',
+        recommended_tier: 'pending',
         request_format: 'pending',
       },
     },
@@ -970,7 +1028,7 @@ async function submitPrompt() {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt, refinement }),
     });
 
     const result = await response.json().catch(() => ({
@@ -990,7 +1048,7 @@ async function submitPrompt() {
       addHistoryEntry({
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
         prompt: prompt.length > 60 ? `${prompt.slice(0, 60)}...` : prompt,
-        route: result.model_used || '—',
+        route: formatModelName(result.model_used || result.debug?.invoked_model_id || ''),
         latency: `${latencyMs}ms`,
         tokens: formatTokenSummary(result.debug),
         status: 'Failed',
@@ -1004,7 +1062,7 @@ async function submitPrompt() {
     addHistoryEntry({
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
       prompt: prompt.length > 60 ? `${prompt.slice(0, 60)}...` : prompt,
-      route: result.model_used || '—',
+      route: formatModelName(result.model_used || result.debug?.invoked_model_id || ''),
       latency: `${latencyMs}ms`,
       tokens: formatTokenSummary(result.debug),
       status: 'Success',
