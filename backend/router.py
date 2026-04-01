@@ -4,11 +4,14 @@ import os
 from queue import Empty
 
 from backend.model import (
-    CLAUDE_SONNET_MODEL_ID,
     BedrockInvocationError,
     NOVA_PRO_MODEL_ID,
+    SONNET_46_BENCHMARK_DISPLAY_NAME,
+    SONNET_46_BENCHMARK_MODEL_ID,
     call_model,
     call_qwen,
+    get_model_display_name,
+    get_practical_benchmark_model_id,
 )
 from backend.routing_pipeline import build_decision
 
@@ -84,10 +87,42 @@ def _build_debug_payload(decision, response_debug: dict | None = None) -> dict:
     model_latency_ms = int(response_debug.get("latency_ms", 0) or 0)
     request_cost = model_cost + decision.classifier_cost
     request_latency_ms = model_latency_ms + decision.classifier_latency_ms
-    baseline_cost = float(response_debug.get("baseline_cost", 0.0) or 0.0)
-    savings_pct = 0.0
+    prompt_tokens = response_debug.get("prompt_token_count")
+    output_tokens = response_debug.get("generation_token_count")
+    fallback_baseline_model = get_practical_benchmark_model_id(
+        response_debug.get("model_id") or decision.selected_model_id,
+        prompt_tokens,
+        output_tokens,
+    )
+    baseline_model = response_debug.get("baseline_model", fallback_baseline_model)
+    baseline_model_display_name = response_debug.get(
+        "baseline_model_display_name",
+        get_model_display_name(baseline_model),
+    )
+    baseline_cost = float(
+        response_debug.get("baseline_cost", response_debug.get("practical_baseline_cost", 0.0)) or 0.0
+    )
+    model_saved_amount = baseline_cost - model_cost
+    request_saved_amount = baseline_cost - request_cost
+    model_savings_pct = 0.0
+    net_savings_pct = 0.0
     if baseline_cost:
-        savings_pct = ((baseline_cost - request_cost) / baseline_cost) * 100
+        model_savings_pct = ((baseline_cost - model_cost) / baseline_cost) * 100
+        net_savings_pct = ((baseline_cost - request_cost) / baseline_cost) * 100
+
+    premium_baseline_model = response_debug.get("premium_baseline_model", SONNET_46_BENCHMARK_MODEL_ID)
+    premium_baseline_model_display_name = response_debug.get(
+        "premium_baseline_model_display_name",
+        SONNET_46_BENCHMARK_DISPLAY_NAME,
+    )
+    premium_baseline_cost = float(response_debug.get("premium_baseline_cost", 0.0) or 0.0)
+    premium_model_saved_amount = premium_baseline_cost - model_cost
+    premium_request_saved_amount = premium_baseline_cost - request_cost
+    premium_model_savings_pct = 0.0
+    premium_net_savings_pct = 0.0
+    if premium_baseline_cost:
+        premium_model_savings_pct = ((premium_baseline_cost - model_cost) / premium_baseline_cost) * 100
+        premium_net_savings_pct = ((premium_baseline_cost - request_cost) / premium_baseline_cost) * 100
 
     return {
         **response_debug,
@@ -121,9 +156,26 @@ def _build_debug_payload(decision, response_debug: dict | None = None) -> dict:
         "model_estimated_cost": model_cost,
         "estimated_cost": request_cost,
         "actual_cost": request_cost,
-        "baseline_model": CLAUDE_SONNET_MODEL_ID,
+        "model_saved_amount": model_saved_amount,
+        "net_saved_amount": request_saved_amount,
+        "model_savings_pct": model_savings_pct,
+        "net_savings_pct": net_savings_pct,
+        "baseline_model": baseline_model,
+        "baseline_model_display_name": baseline_model_display_name,
         "baseline_cost": baseline_cost,
-        "savings_pct": savings_pct,
+        "savings_pct": model_savings_pct,
+        "practical_baseline_model": baseline_model,
+        "practical_baseline_model_display_name": baseline_model_display_name,
+        "practical_baseline_cost": baseline_cost,
+        "practical_savings_pct": model_savings_pct,
+        "practical_net_savings_pct": net_savings_pct,
+        "premium_baseline_model": premium_baseline_model,
+        "premium_baseline_model_display_name": premium_baseline_model_display_name,
+        "premium_baseline_cost": premium_baseline_cost,
+        "premium_model_saved_amount": premium_model_saved_amount,
+        "premium_net_saved_amount": premium_request_saved_amount,
+        "premium_model_savings_pct": premium_model_savings_pct,
+        "premium_net_savings_pct": premium_net_savings_pct,
     }
 
 

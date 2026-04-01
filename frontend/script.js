@@ -109,6 +109,34 @@ const TEXT_ATTACHMENT_EXTENSIONS = new Set([
     'go', 'sql', 'sh', 'log',
 ]);
 const MAX_ATTACHMENT_CHARS = 12000;
+const PREMIUM_BENCHMARK = {
+    id: 'anthropic.claude-sonnet-4-6-benchmark',
+    name: 'Claude Sonnet 4.6',
+    inputPricePerMillion: 3.0,
+    outputPricePerMillion: 15.0,
+};
+
+const MODEL_PRICE_PROFILES = {
+    'amazon.nova-micro-v1:0': { inputPricePerMillion: 0.035, outputPricePerMillion: 0.14 },
+    'mistral.ministral-3-8b-instruct': { inputPricePerMillion: 0.1, outputPricePerMillion: 0.3 },
+    'moonshotai.kimi-k2.5': { inputPricePerMillion: 0.6, outputPricePerMillion: 3.0 },
+    'amazon.nova-pro-v1:0': { inputPricePerMillion: 0.8, outputPricePerMillion: 3.2 },
+    'zai.glm-5': { inputPricePerMillion: 0.6, outputPricePerMillion: 2.5 },
+    'qwen.qwen3-next-80b-a3b': { inputPricePerMillion: 0.12, outputPricePerMillion: 0.6 },
+    [PREMIUM_BENCHMARK.id]: {
+        inputPricePerMillion: PREMIUM_BENCHMARK.inputPricePerMillion,
+        outputPricePerMillion: PREMIUM_BENCHMARK.outputPricePerMillion,
+    },
+};
+
+const PRACTICAL_BENCHMARK_CANDIDATES_BY_MODEL = {
+    'amazon.nova-micro-v1:0': ['mistral.ministral-3-8b-instruct', 'moonshotai.kimi-k2.5', 'zai.glm-5', PREMIUM_BENCHMARK.id],
+    'mistral.ministral-3-8b-instruct': ['moonshotai.kimi-k2.5', 'zai.glm-5', PREMIUM_BENCHMARK.id],
+    'moonshotai.kimi-k2.5': ['zai.glm-5', PREMIUM_BENCHMARK.id],
+    'amazon.nova-pro-v1:0': ['zai.glm-5', PREMIUM_BENCHMARK.id],
+    'zai.glm-5': [PREMIUM_BENCHMARK.id],
+    'qwen.qwen3-next-80b-a3b': ['moonshotai.kimi-k2.5', 'zai.glm-5', PREMIUM_BENCHMARK.id],
+};
 
 let analyticsChart = null;
 let pendingAttachments = [];
@@ -229,6 +257,7 @@ function initIndexPage() {
     const fileInput = document.getElementById('file-input');
     const attachmentList = document.getElementById('attachment-list');
     if (!promptInput || !goBtn) return;
+    const isFreshChat = new URLSearchParams(window.location.search).get('fresh') === '1';
 
     promptInput.addEventListener('input', autoResizePrompt);
     promptInput.addEventListener('keydown', (event) => {
@@ -260,11 +289,19 @@ function initIndexPage() {
         renderAttachmentList(attachmentList);
     }
 
-    const latestEntry = getHistory()[0];
-    if (latestEntry) {
-        renderIndexEntry(latestEntry);
-    } else {
+    if (isFreshChat) {
+        pendingAttachments = [];
+        renderAttachmentList(attachmentList);
+        localStorage.removeItem(STORAGE_KEYS.selectedEntryId);
         renderIdleState();
+        window.history.replaceState({}, '', 'index.html');
+    } else {
+        const latestEntry = getHistory()[0];
+        if (latestEntry) {
+            renderIndexEntry(latestEntry);
+        } else {
+            renderIdleState();
+        }
     }
 
     checkBackendHealth();
@@ -490,6 +527,26 @@ function renderIndexEntry(entry) {
     }
 
     responseStatus.innerHTML = entry.ok ? successBadge(entry.fallbackUsed ? 'Fallback Success' : 'Success') : errorBadge('Failed');
+    const sameBenchmarkAsPremium = (
+        String(entry.baselineModel || '') === String(entry.premiumBaselineModel || '')
+        || (
+            String(entry.baselineModelName || '') === String(entry.premiumBaselineModelName || '')
+            && Math.abs(Number(entry.baselineCost || 0) - Number(entry.premiumBaselineCost || 0)) < 0.000000001
+        )
+    );
+    const baselineLabel = sameBenchmarkAsPremium
+        ? `${entry.baselineModelName || 'Benchmark'} Benchmark`
+        : 'Next Best Baseline';
+    const premiumBenchmarkCards = sameBenchmarkAsPremium ? '' : `
+                <div class="response-meta-item">
+                    <span class="meta-key">Premium Benchmark</span>
+                    <span class="meta-value">${formatCurrency(entry.premiumBaselineCost)}</span>
+                </div>
+                <div class="response-meta-item">
+                    <span class="meta-key">Saved vs ${escapeHtml(entry.premiumBaselineModelName)}</span>
+                    <span class="meta-value ${entry.premiumSavingsPct < 0 ? 'negative-money' : 'positive-money'}">${formatSavingsText(entry.premiumSavingsPct, entry.premiumBaselineModelName)}</span>
+                </div>
+    `;
     responseBody.innerHTML = `
         <div class="response-output markdown-response">${renderMarkdown(entry.response || 'No response returned.')}</div>
         <details class="response-details">
@@ -515,13 +572,18 @@ function renderIndexEntry(entry) {
                     <span class="meta-value">${formatCurrency(entry.cost)}</span>
                 </div>
                 <div class="response-meta-item">
-                    <span class="meta-key">GLM 5 Baseline</span>
+                    <span class="meta-key">${escapeHtml(baselineLabel)}</span>
                     <span class="meta-value">${formatCurrency(entry.baselineCost)}</span>
                 </div>
                 <div class="response-meta-item">
-                    <span class="meta-key">GLM 5 Comparison</span>
-                    <span class="meta-value ${entry.savingsPct < 0 ? 'negative-money' : 'positive-money'}">${formatSavingsText(entry.savingsPct)}</span>
+                    <span class="meta-key">Saved vs ${escapeHtml(entry.baselineModelName)}</span>
+                    <span class="meta-value ${entry.savingsPct < 0 ? 'negative-money' : 'positive-money'}">${formatSavingsText(entry.savingsPct, entry.baselineModelName)}</span>
                 </div>
+                <div class="response-meta-item">
+                    <span class="meta-key">Net Routed vs ${escapeHtml(entry.baselineModelName)}</span>
+                    <span class="meta-value ${entry.netSavingsPct < 0 ? 'negative-money' : 'positive-money'}">${formatSavingsText(entry.netSavingsPct, entry.baselineModelName)}</span>
+                </div>
+                ${premiumBenchmarkCards}
                 <div class="response-meta-item">
                     <span class="meta-key">Tokens</span>
                     <span class="meta-value">${formatNumber(entry.totalTokens)}${buildTokenSuffix(entry)}</span>
@@ -709,35 +771,43 @@ function renderAnalyticsPage() {
     const selectedTitle = document.getElementById('selected-prompt-title');
     const chartPlaceholder = document.getElementById('chart-placeholder');
     const chartCanvas = document.getElementById('performanceChart');
+    const totalSavings = document.getElementById('stat-total-savings');
+    const totalSavingsDetail = document.getElementById('stat-total-savings-detail');
     const statModel = document.getElementById('stat-model');
     const statLatency = document.getElementById('stat-latency');
     const statCost = document.getElementById('stat-cost');
     const statBaselineCost = document.getElementById('stat-baseline-cost');
     const statSavings = document.getElementById('stat-savings');
-    if (!selectedTitle || !chartPlaceholder || !chartCanvas || !statModel || !statLatency || !statCost || !statBaselineCost || !statSavings) return;
+    if (!selectedTitle || !chartPlaceholder || !chartCanvas || !totalSavings || !totalSavingsDetail || !statModel || !statLatency || !statCost || !statBaselineCost || !statSavings) return;
 
     if (!history.length) {
         selectedTitle.textContent = 'Select a prompt to view analytics';
         chartPlaceholder.style.display = 'block';
         chartCanvas.style.display = 'none';
+        totalSavings.textContent = `$0 saved`;
+        totalSavingsDetail.textContent = `Model-only benchmark vs next-best model`;
         statModel.textContent = '-';
         statLatency.textContent = '0ms';
-        statCost.textContent = '$0.000000';
-        statBaselineCost.textContent = '$0.000000';
-        statSavings.textContent = 'Matches GLM 5';
+        statCost.textContent = '$0';
+        statBaselineCost.textContent = '$0';
+        statSavings.textContent = 'Matches next-best model';
         if (analyticsChart) analyticsChart.destroy();
         return;
     }
 
     const selected = getSelectedEntry(history);
     if (!selected) return;
+    const totals = buildHistoryTotals(history);
 
     selectedTitle.textContent = `Analytics for: ${truncate(selected.prompt, 52)}`;
+    totalSavings.textContent = formatSavingsAmount(totals.savedAmount, 'next-best models');
+    totalSavingsDetail.textContent = `Model-only ${formatCompactCurrency(totals.modelCost)} • Next-best ${formatCompactCurrency(totals.baselineCost)} • Premium ref ${formatSavingsAmount(totals.premiumSavedAmount, PREMIUM_BENCHMARK.name)}`;
+    totalSavings.style.color = totals.savedAmount < 0 ? '#f28b82' : '#81c995';
     statModel.textContent = selected.modelName;
     statLatency.textContent = `${Math.round(selected.latencyMs || 0)}ms`;
-    statCost.textContent = formatCurrency(selected.cost);
-    statBaselineCost.textContent = formatCurrency(selected.baselineCost);
-    statSavings.textContent = formatSavingsText(selected.savingsPct);
+    statCost.textContent = formatCompactCurrency(selected.cost);
+    statBaselineCost.textContent = formatCompactCurrency(selected.baselineCost);
+    statSavings.textContent = formatSavingsText(selected.savingsPct, selected.baselineModelName);
     statSavings.style.color = selected.savingsPct < 0 ? '#f28b82' : '#81c995';
     chartPlaceholder.style.display = 'none';
     chartCanvas.style.display = 'block';
@@ -786,8 +856,9 @@ function renderAnalyticsPage() {
                             return [
                                 `Model: ${entry.modelName}`,
                                 `Cost: ${formatCurrency(entry.cost)}`,
-                                `Baseline: ${formatCurrency(entry.baselineCost)}`,
-                                `GLM 5 comparison: ${formatSavingsText(entry.savingsPct)}`,
+                                `Next-best baseline: ${formatCurrency(entry.baselineCost)}`,
+                                `${entry.baselineModelName} comparison: ${formatSavingsText(entry.savingsPct, entry.baselineModelName)}`,
+                                `${entry.premiumBaselineModelName} comparison: ${formatSavingsText(entry.premiumSavingsPct, entry.premiumBaselineModelName)}`,
                                 `Qwen: ${entry.usedQwen ? 'Yes' : 'No'}`,
                             ];
                         },
@@ -1011,8 +1082,19 @@ function saveResultToHistory(result, prompt, refinement) {
         modelCost: Number(debug.model_estimated_cost ?? 0),
         classifierCost: Number(debug.classifier_cost ?? 0),
         baselineCost: Number(debug.baseline_cost ?? 0),
-        baselineModel: debug.baseline_model || 'zai.glm-5',
-        savingsPct: Number(debug.savings_pct ?? 0),
+        baselineModel: debug.baseline_model || debug.practical_baseline_model,
+        baselineModelName: debug.baseline_model_display_name || debug.practical_baseline_model_display_name,
+        savingsPct: Number(debug.model_savings_pct ?? debug.savings_pct ?? 0),
+        netSavingsPct: Number(debug.net_savings_pct ?? 0),
+        savedAmount: Number(debug.model_saved_amount ?? 0),
+        netSavedAmount: Number(debug.net_saved_amount ?? 0),
+        premiumBaselineCost: Number(debug.premium_baseline_cost ?? 0),
+        premiumBaselineModel: debug.premium_baseline_model || PREMIUM_BENCHMARK.id,
+        premiumBaselineModelName: debug.premium_baseline_model_display_name || PREMIUM_BENCHMARK.name,
+        premiumSavingsPct: Number(debug.premium_model_savings_pct ?? debug.premium_savings_pct ?? 0),
+        premiumNetSavingsPct: Number(debug.premium_net_savings_pct ?? 0),
+        premiumSavedAmount: Number(debug.premium_model_saved_amount ?? 0),
+        premiumNetSavedAmount: Number(debug.premium_net_saved_amount ?? 0),
         totalTokens: Number(debug.total_token_count || 0),
         promptTokens: Number(debug.prompt_token_count || 0),
         outputTokens: Number(debug.generation_token_count || 0),
@@ -1049,8 +1131,19 @@ function saveErrorToHistory(error, prompt, refinement, payload) {
         modelCost: Number(debug.model_estimated_cost ?? 0),
         classifierCost: Number(debug.classifier_cost ?? 0),
         baselineCost: Number(debug.baseline_cost ?? 0),
-        baselineModel: debug.baseline_model || 'zai.glm-5',
-        savingsPct: Number(debug.savings_pct ?? 0),
+        baselineModel: debug.baseline_model || debug.practical_baseline_model,
+        baselineModelName: debug.baseline_model_display_name || debug.practical_baseline_model_display_name,
+        savingsPct: Number(debug.model_savings_pct ?? debug.savings_pct ?? 0),
+        netSavingsPct: Number(debug.net_savings_pct ?? 0),
+        savedAmount: Number(debug.model_saved_amount ?? 0),
+        netSavedAmount: Number(debug.net_saved_amount ?? 0),
+        premiumBaselineCost: Number(debug.premium_baseline_cost ?? 0),
+        premiumBaselineModel: debug.premium_baseline_model || PREMIUM_BENCHMARK.id,
+        premiumBaselineModelName: debug.premium_baseline_model_display_name || PREMIUM_BENCHMARK.name,
+        premiumSavingsPct: Number(debug.premium_model_savings_pct ?? debug.premium_savings_pct ?? 0),
+        premiumNetSavingsPct: Number(debug.premium_net_savings_pct ?? 0),
+        premiumSavedAmount: Number(debug.premium_model_saved_amount ?? 0),
+        premiumNetSavedAmount: Number(debug.premium_net_saved_amount ?? 0),
         totalTokens: Number(debug.total_token_count || 0),
         promptTokens: Number(debug.prompt_token_count || 0),
         outputTokens: Number(debug.generation_token_count || 0),
@@ -1080,11 +1173,51 @@ function normalizeHistoryEntry(raw) {
     const promptTokens = Number(raw.promptTokens ?? raw.prompt_token_count ?? 0);
     const outputTokens = Number(raw.outputTokens ?? raw.generation_token_count ?? 0);
     const totalTokens = Number(raw.totalTokens ?? raw.tokens ?? raw.total_token_count ?? (promptTokens + outputTokens));
-    const legacyCost = raw.cost != null && raw.actualCost == null && totalTokens
+    const hasStructuredPricing = raw.modelCost != null
+        || raw.model_cost != null
+        || raw.classifierCost != null
+        || raw.classifier_cost != null
+        || raw.baselineCost != null
+        || raw.baseline_cost != null
+        || raw.premiumBaselineCost != null
+        || raw.premium_baseline_cost != null;
+    const legacyCost = raw.cost != null && !hasStructuredPricing && totalTokens
         ? Number(raw.cost) / 1_000_000 * totalTokens
         : Number(raw.cost ?? 0);
-    const baselineCost = Number(raw.baselineCost ?? raw.baseline_cost ?? 0);
-    const savingsPct = Number(raw.savingsPct ?? raw.savings_pct ?? 0);
+    const actualCost = Number(raw.actualCost ?? raw.actual_cost ?? raw.estimatedCost ?? raw.estimated_cost ?? legacyCost ?? 0);
+    const modelCost = Number(raw.modelCost ?? raw.model_cost ?? actualCost ?? 0);
+    const classifierCost = Number(raw.classifierCost ?? raw.classifier_cost ?? Math.max(0, actualCost - modelCost));
+    const computedPracticalBenchmarkModel = getPracticalBenchmarkModelId(mappedModelId, promptTokens, outputTokens);
+    const computedPracticalBenchmarkCost = estimateCostForModel(computedPracticalBenchmarkModel, promptTokens, outputTokens);
+    const rawBaselineModel = raw.baselineModel || raw.baseline_model;
+    const hasMatchingPracticalBaseline = rawBaselineModel === computedPracticalBenchmarkModel;
+    const resolvedBaselineModel = hasMatchingPracticalBaseline ? rawBaselineModel : computedPracticalBenchmarkModel;
+    const resolvedPremiumBaselineModel = raw.premiumBaselineModel || raw.premium_baseline_model || PREMIUM_BENCHMARK.id;
+    const rawBaselineCost = Number(raw.baselineCost ?? raw.baseline_cost ?? NaN);
+    const computedPremiumBaselineCost = estimateCostForModel(resolvedPremiumBaselineModel, promptTokens, outputTokens);
+    const rawPremiumBaselineCost = Number(raw.premiumBaselineCost ?? raw.premium_baseline_cost ?? NaN);
+    const baselineCost = hasMatchingPracticalBaseline && Number.isFinite(rawBaselineCost) && rawBaselineCost > 0
+        ? rawBaselineCost
+        : computedPracticalBenchmarkCost;
+    const premiumBaselineCost = Number.isFinite(rawPremiumBaselineCost) && rawPremiumBaselineCost > 0
+        ? rawPremiumBaselineCost
+        : computedPremiumBaselineCost;
+    const savingsPct = baselineCost
+        ? ((baselineCost - modelCost) / baselineCost) * 100
+        : Number(raw.savingsPct ?? raw.savings_pct ?? 0);
+    const netSavingsPct = baselineCost
+        ? ((baselineCost - actualCost) / baselineCost) * 100
+        : Number(raw.netSavingsPct ?? raw.net_savings_pct ?? 0);
+    const savedAmount = baselineCost - modelCost;
+    const netSavedAmount = baselineCost - actualCost;
+    const premiumSavingsPct = premiumBaselineCost
+        ? ((premiumBaselineCost - modelCost) / premiumBaselineCost) * 100
+        : Number(raw.premiumSavingsPct ?? raw.premium_savings_pct ?? 0);
+    const premiumNetSavingsPct = premiumBaselineCost
+        ? ((premiumBaselineCost - actualCost) / premiumBaselineCost) * 100
+        : Number(raw.premiumNetSavingsPct ?? raw.premium_net_savings_pct ?? 0);
+    const premiumSavedAmount = premiumBaselineCost - modelCost;
+    const premiumNetSavedAmount = premiumBaselineCost - actualCost;
 
     return {
         id: raw.id || raw.requestId || raw.request_id || buildEntryId(),
@@ -1095,12 +1228,25 @@ function normalizeHistoryEntry(raw) {
         modelId: mappedModelId,
         modelName: raw.modelName || formatModelName(mappedModelId),
         latencyMs: Number(raw.latencyMs ?? raw.latency ?? raw.latency_ms ?? 0),
-        cost: Number(raw.actualCost ?? raw.actual_cost ?? raw.estimatedCost ?? raw.estimated_cost ?? legacyCost ?? 0),
-        modelCost: Number(raw.modelCost ?? raw.model_cost ?? 0),
-        classifierCost: Number(raw.classifierCost ?? raw.classifier_cost ?? 0),
+        cost: actualCost,
+        modelCost,
+        classifierCost,
         baselineCost,
-        baselineModel: raw.baselineModel || raw.baseline_model || 'zai.glm-5',
+        baselineModel: resolvedBaselineModel,
+        baselineModelName: hasMatchingPracticalBaseline
+            ? raw.baselineModelName || raw.baseline_model_display_name || formatModelName(resolvedBaselineModel)
+            : formatModelName(resolvedBaselineModel),
         savingsPct,
+        netSavingsPct,
+        savedAmount,
+        netSavedAmount,
+        premiumBaselineCost,
+        premiumBaselineModel: resolvedPremiumBaselineModel,
+        premiumBaselineModelName: raw.premiumBaselineModelName || raw.premium_baseline_model_display_name || PREMIUM_BENCHMARK.name,
+        premiumSavingsPct,
+        premiumNetSavingsPct,
+        premiumSavedAmount,
+        premiumNetSavedAmount,
         totalTokens,
         promptTokens,
         outputTokens,
@@ -1140,6 +1286,9 @@ function workingBadge(label) {
 }
 
 function formatModelName(modelId) {
+    if (modelId === PREMIUM_BENCHMARK.id) {
+        return PREMIUM_BENCHMARK.name;
+    }
     return MODEL_MAP[modelId]?.name || modelId || 'Unknown Model';
 }
 
@@ -1207,30 +1356,106 @@ function formatCurrency(value) {
     return `$${amount.toFixed(8)}`;
 }
 
+function formatCompactCurrency(value) {
+    const amount = Number(value || 0);
+    if (amount === 0) return '$0';
+    if (amount >= 1) return `$${amount.toFixed(2)}`;
+    if (amount >= 0.01) return `$${amount.toFixed(4).replace(/0+$/u, '').replace(/\.$/u, '')}`;
+    if (amount >= 0.000001) return `$${amount.toFixed(6).replace(/0+$/u, '').replace(/\.$/u, '')}`;
+    return '<$0.000001';
+}
+
 function formatPercent(value) {
     return `${Number(value || 0).toFixed(2)}%`;
 }
 
-function formatSavingsText(value) {
+function formatSavingsText(value, baselineName = 'the benchmark') {
     const savings = Number(value || 0);
     if (Math.abs(savings) < 0.005) {
-        return 'Matches GLM 5';
+        return `Matches ${baselineName}`;
     }
     if (savings >= 0) {
-        return `Saved ${formatPercent(savings)} vs GLM 5`;
+        return `Saved ${formatPercent(savings)} vs ${baselineName}`;
     }
-    return `${formatPercent(Math.abs(savings))} over GLM 5`;
+    return `${formatPercent(Math.abs(savings))} over ${baselineName}`;
 }
 
 function formatSavingsChip(value) {
     const savings = Number(value || 0);
     if (Math.abs(savings) < 0.005) {
-        return 'Near GLM 5';
+        return 'Near baseline';
     }
     if (savings >= 0) {
         return `Save ${formatPercent(savings)}`;
     }
     return `${formatPercent(Math.abs(savings))} over`;
+}
+
+function formatSavingsAmount(savedAmount, baselineName = 'the benchmark') {
+    const amount = Number(savedAmount || 0);
+    if (Math.abs(amount) < 0.0000005) {
+        return `On par with ${baselineName}`;
+    }
+    if (amount >= 0) {
+        return `${formatCompactCurrency(amount)} saved`;
+    }
+    return `${formatCompactCurrency(Math.abs(amount))} over`;
+}
+
+function getPracticalBenchmarkModelId(modelId, promptTokens = 0, outputTokens = 0) {
+    const candidates = PRACTICAL_BENCHMARK_CANDIDATES_BY_MODEL[modelId];
+    if (!candidates || !candidates.length) {
+        return PREMIUM_BENCHMARK.id;
+    }
+
+    const modelCost = estimateCostForModel(modelId, promptTokens, outputTokens);
+    for (const candidate of candidates) {
+        if (estimateCostForModel(candidate, promptTokens, outputTokens) > modelCost) {
+            return candidate;
+        }
+    }
+
+    return candidates[candidates.length - 1];
+}
+
+function estimateCostForModel(modelId, promptTokens, outputTokens) {
+    const profile = MODEL_PRICE_PROFILES[modelId];
+    if (!profile) return 0;
+    const inputCount = Number(promptTokens || 0);
+    const outputCount = Number(outputTokens || 0);
+    return (
+        (inputCount / 1_000_000) * profile.inputPricePerMillion
+        + (outputCount / 1_000_000) * profile.outputPricePerMillion
+    );
+}
+
+function buildHistoryTotals(history) {
+    const actualCost = history.reduce((sum, entry) => sum + Number(entry.cost || 0), 0);
+    const modelCost = history.reduce((sum, entry) => sum + Number(entry.modelCost || entry.cost || 0), 0);
+    const baselineCost = history.reduce((sum, entry) => sum + Number(entry.baselineCost || 0), 0);
+    const premiumBaselineCost = history.reduce((sum, entry) => sum + Number(entry.premiumBaselineCost || 0), 0);
+    const savedAmount = baselineCost - modelCost;
+    const netSavedAmount = baselineCost - actualCost;
+    const premiumSavedAmount = premiumBaselineCost - modelCost;
+    const premiumNetSavedAmount = premiumBaselineCost - actualCost;
+    const savedPct = baselineCost ? (savedAmount / baselineCost) * 100 : 0;
+    const netSavedPct = baselineCost ? (netSavedAmount / baselineCost) * 100 : 0;
+    const premiumSavedPct = premiumBaselineCost ? (premiumSavedAmount / premiumBaselineCost) * 100 : 0;
+    const premiumNetSavedPct = premiumBaselineCost ? (premiumNetSavedAmount / premiumBaselineCost) * 100 : 0;
+    return {
+        actualCost,
+        modelCost,
+        baselineCost,
+        premiumBaselineCost,
+        savedAmount,
+        savedPct,
+        netSavedAmount,
+        netSavedPct,
+        premiumSavedAmount,
+        premiumSavedPct,
+        premiumNetSavedAmount,
+        premiumNetSavedPct,
+    };
 }
 
 function renderMarkdown(markdown) {

@@ -42,6 +42,14 @@ GLM_5_MODEL_ID = KIMI_MODEL_ID_ALIASES.get(
 CLAUDE_HAIKU_MODEL_ID = KIMI_K25_MODEL_ID
 CLAUDE_SONNET_MODEL_ID = GLM_5_MODEL_ID
 QWEN_MODEL_ID = os.getenv("BEDROCK_QWEN_MODEL_ID", "qwen.qwen3-next-80b-a3b")
+SONNET_46_BENCHMARK_MODEL_ID = os.getenv(
+    "BEDROCK_BASELINE_MODEL_ID",
+    "anthropic.claude-sonnet-4-6-benchmark",
+)
+SONNET_46_BENCHMARK_DISPLAY_NAME = os.getenv(
+    "BEDROCK_BASELINE_DISPLAY_NAME",
+    "Claude Sonnet 4.6",
+)
 
 CLAUDE_HAIKU_INFERENCE_PROFILE_ID = os.getenv("BEDROCK_KIMI_K25_INFERENCE_PROFILE_ID")
 CLAUDE_SONNET_INFERENCE_PROFILE_ID = os.getenv("BEDROCK_GLM_5_INFERENCE_PROFILE_ID")
@@ -152,6 +160,24 @@ MODEL_PROFILES = {
         temperature=0.0,
         top_p=0.1,
     ),
+    SONNET_46_BENCHMARK_MODEL_ID: ModelProfile(
+        model_id=SONNET_46_BENCHMARK_MODEL_ID,
+        display_name=SONNET_46_BENCHMARK_DISPLAY_NAME,
+        provider="anthropic",
+        role="benchmark_only",
+        input_price_per_million=float(
+            os.getenv("BEDROCK_PRICE_CLAUDE_SONNET_46_INPUT")
+            or os.getenv("BEDROCK_PRICE_CLAUDE_SONNET_INPUT")
+            or "3.0"
+        ),
+        output_price_per_million=float(
+            os.getenv("BEDROCK_PRICE_CLAUDE_SONNET_46_OUTPUT")
+            or os.getenv("BEDROCK_PRICE_CLAUDE_SONNET_OUTPUT")
+            or "15.0"
+        ),
+        default_max_tokens=0,
+        request_format="benchmark_only",
+    ),
 }
 
 MODEL_ALIASES = {
@@ -161,6 +187,15 @@ if CLAUDE_HAIKU_INFERENCE_PROFILE_ID:
     MODEL_ALIASES[CLAUDE_HAIKU_INFERENCE_PROFILE_ID] = CLAUDE_HAIKU_MODEL_ID
 if CLAUDE_SONNET_INFERENCE_PROFILE_ID:
     MODEL_ALIASES[CLAUDE_SONNET_INFERENCE_PROFILE_ID] = CLAUDE_SONNET_MODEL_ID
+
+PRACTICAL_BENCHMARK_CANDIDATES_BY_MODEL = {
+    NOVA_MICRO_MODEL_ID: [MISTRAL_MODEL_ID, CLAUDE_HAIKU_MODEL_ID, CLAUDE_SONNET_MODEL_ID, SONNET_46_BENCHMARK_MODEL_ID],
+    MISTRAL_MODEL_ID: [CLAUDE_HAIKU_MODEL_ID, CLAUDE_SONNET_MODEL_ID, SONNET_46_BENCHMARK_MODEL_ID],
+    CLAUDE_HAIKU_MODEL_ID: [CLAUDE_SONNET_MODEL_ID, SONNET_46_BENCHMARK_MODEL_ID],
+    NOVA_PRO_MODEL_ID: [CLAUDE_SONNET_MODEL_ID, SONNET_46_BENCHMARK_MODEL_ID],
+    CLAUDE_SONNET_MODEL_ID: [SONNET_46_BENCHMARK_MODEL_ID],
+    QWEN_MODEL_ID: [CLAUDE_HAIKU_MODEL_ID, CLAUDE_SONNET_MODEL_ID, SONNET_46_BENCHMARK_MODEL_ID],
+}
 
 DEFAULT_SYSTEM_PROMPT = (
     "You are a precise assistant helping power a production routing demo. "
@@ -291,6 +326,30 @@ def estimate_cost(model_id: str, input_tokens: int | None, output_tokens: int | 
     )
 
 
+def get_model_display_name(model_id: str) -> str:
+    return _get_profile(model_id).display_name
+
+
+def get_practical_benchmark_model_id(
+    model_id: str,
+    input_tokens: int | None = None,
+    output_tokens: int | None = None,
+) -> str:
+    profile = _get_profile(model_id)
+    candidates = PRACTICAL_BENCHMARK_CANDIDATES_BY_MODEL.get(profile.model_id)
+    if not candidates:
+        return SONNET_46_BENCHMARK_MODEL_ID
+
+    if input_tokens is None and output_tokens is None:
+        return candidates[0]
+
+    model_cost = estimate_cost(profile.model_id, input_tokens, output_tokens)
+    for candidate in candidates:
+        if estimate_cost(candidate, input_tokens, output_tokens) > model_cost:
+            return candidate
+    return candidates[-1]
+
+
 def _record_request_metric(metric: dict) -> None:
     MODEL_REQUEST_LOGS.append(metric)
     logger.info(
@@ -415,10 +474,16 @@ def _converse(
     output_tokens = usage.get("outputTokens")
     total_tokens = usage.get("totalTokens")
     estimated_cost = estimate_cost(model_id, input_tokens, output_tokens)
-    baseline_cost = estimate_cost(CLAUDE_SONNET_MODEL_ID, input_tokens, output_tokens)
-    savings_pct = 0.0
-    if baseline_cost:
-        savings_pct = ((baseline_cost - estimated_cost) / baseline_cost) * 100
+    practical_baseline_model = get_practical_benchmark_model_id(model_id, input_tokens, output_tokens)
+    practical_baseline_cost = estimate_cost(practical_baseline_model, input_tokens, output_tokens)
+    practical_savings_pct = 0.0
+    if practical_baseline_cost:
+        practical_savings_pct = ((practical_baseline_cost - estimated_cost) / practical_baseline_cost) * 100
+
+    premium_baseline_cost = estimate_cost(SONNET_46_BENCHMARK_MODEL_ID, input_tokens, output_tokens)
+    premium_savings_pct = 0.0
+    if premium_baseline_cost:
+        premium_savings_pct = ((premium_baseline_cost - estimated_cost) / premium_baseline_cost) * 100
 
     debug = {
         "region": _resolve_region(),
@@ -434,8 +499,18 @@ def _converse(
         "total_token_count": total_tokens,
         "latency_ms": latency_ms,
         "estimated_cost": estimated_cost,
-        "baseline_cost": baseline_cost,
-        "savings_pct": savings_pct,
+        "baseline_model": practical_baseline_model,
+        "baseline_model_display_name": get_model_display_name(practical_baseline_model),
+        "baseline_cost": practical_baseline_cost,
+        "savings_pct": practical_savings_pct,
+        "practical_baseline_model": practical_baseline_model,
+        "practical_baseline_model_display_name": get_model_display_name(practical_baseline_model),
+        "practical_baseline_cost": practical_baseline_cost,
+        "practical_savings_pct": practical_savings_pct,
+        "premium_baseline_model": SONNET_46_BENCHMARK_MODEL_ID,
+        "premium_baseline_model_display_name": SONNET_46_BENCHMARK_DISPLAY_NAME,
+        "premium_baseline_cost": premium_baseline_cost,
+        "premium_savings_pct": premium_savings_pct,
     }
     _record_request_metric(debug)
 

@@ -144,6 +144,22 @@ body {
     padding: 6px 12px 6px 8px;
 }
 
+.top-icon-btn.primary-nav {
+    border-radius: 999px;
+    padding: 8px 14px 8px 10px;
+    background: rgba(129, 201, 149, 0.14);
+    border: 1px solid rgba(129, 201, 149, 0.28);
+    color: #c6f6d5;
+}
+
+.top-icon-btn.primary-nav:hover {
+    background: rgba(129, 201, 149, 0.2);
+}
+
+.top-icon-btn.active-nav {
+    background: rgba(255,255,255,0.1);
+}
+
 .btn-label {
     font-size: 14px;
     font-weight: 500;
@@ -1497,6 +1513,48 @@ input:checked + .slider:before {
     gap: 16px;
 }
 
+.analytics-total-banner {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 20px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, rgba(129, 201, 149, 0.12), rgba(168, 199, 250, 0.08));
+    border: 1px solid rgba(129, 201, 149, 0.2);
+}
+
+.analytics-total-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: rgba(129, 201, 149, 0.16);
+    color: #81c995;
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.analytics-total-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.analytics-total-value {
+    font-size: clamp(22px, 2.4vw, 32px);
+    font-weight: 600;
+    line-height: 1.15;
+    color: var(--text-primary);
+}
+
+.analytics-total-detail {
+    margin-top: 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
 .analytics-stat-card {
     background: var(--bg-surface);
     border: 1px solid var(--border-color);
@@ -1522,6 +1580,10 @@ input:checked + .slider:before {
 
 .analytics-stat-value.money {
     font-variant-numeric: tabular-nums;
+    font-size: clamp(16px, 1.7vw, 24px);
+    white-space: nowrap;
+    word-break: normal;
+    overflow-wrap: normal;
 }
 
 .analytics-stat-value.model {
@@ -1554,6 +1616,10 @@ input:checked + .slider:before {
 @media (max-width: 720px) {
     .response-details summary {
         flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .analytics-total-banner {
         align-items: flex-start;
     }
 

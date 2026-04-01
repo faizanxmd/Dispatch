@@ -25,9 +25,17 @@
             </button>
         </div>
         <div class="top-bar-right">
+            <button class="top-icon-btn has-label primary-nav" id="new-chat-top-btn" title="Chats" onclick="window.location.href='index.html?fresh=1'">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <span class="btn-label">Chats</span>
+            </button>
             <button class="top-icon-btn has-label" id="models-top-btn" title="Models" onclick="window.location.href='models.html'">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
                 <span class="btn-label">Models</span>
+            </button>
+            <button class="top-icon-btn has-label" id="analytics-top-btn" title="Analytics" onclick="window.location.href='analytics.html'">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/></svg>
+                <span class="btn-label">Analytics</span>
             </button>
             <button class="top-icon-btn has-label" id="history-top-btn" title="History" onclick="window.location.href='history.html'">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
@@ -41,13 +49,9 @@
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <div class="sidebar-tabs">
-                    <button class="sidebar-tab active" id="new-chats-tab" onclick="window.location.href='index.html'">
+                    <button class="sidebar-tab active" id="new-chats-tab" onclick="window.location.href='index.html?fresh=1'">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>
-                        <span class="sidebar-tab-label">New Chats</span>
-                    </button>
-                    <button class="sidebar-tab" id="analytics-tab" onclick="window.location.href='analytics.html'">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/></svg>
-                        <span class="sidebar-tab-label">Analytics</span>
+                        <span class="sidebar-tab-label">Chats</span>
                     </button>
                 </div>
                 <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" title="Collapse sidebar">
