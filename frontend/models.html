@@ -71,72 +71,19 @@
         <!-- Main Content -->
         <main class="main-content" id="main-content">
             <div style="width: 100%; max-width: 800px; margin-top: 24px; margin-bottom: 60px;">
-                <h1 style="margin-bottom: 24px;">Models Configuration</h1>
-                
-                <button class="add-model-btn" id="add-model-btn" title="Add new model">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                    Add Extra Model
-                </button>
+                <h1 style="margin-bottom: 8px;">Models</h1>
+                <p style="margin: 0 0 24px; color: var(--text-secondary); max-width: 620px;">
+                    Current routing stack and model roles.
+                </p>
 
                 <div class="models-list" id="models-list">
-                    <!-- Strong Model -->
                     <div class="model-card">
                         <div class="model-header">
-                            <h3 class="model-title">Claude Sonnet 4.6</h3>
-                            <span class="model-tier" style="color: #f28b82;">Tier 3 — Complex Reasoning</span>
+                            <h3 class="model-title">Loading models</h3>
+                            <span class="model-tier" style="color: var(--text-secondary);">Routing Stack</span>
                         </div>
-                        <span class="model-provider">anthropic.claude-sonnet-4-6-v1:0 • Provider: Anthropic</span>
-                        <p class="model-desc">
-                            The undisputed champion for complex logic, multi-step autonomous workflows, and deep reasoning. Acts as the ultimate fallback for highly nuanced queries that confuse lower tiers.
-                        </p>
-                    </div>
-
-                    <!-- Balanced Model -->
-                    <div class="model-card">
-                        <div class="model-header">
-                            <h3 class="model-title">Amazon Nova Pro</h3>
-                            <span class="model-tier" style="color: #fbbc04;">Tier 2 — General Reasoning</span>
-                        </div>
-                        <span class="model-provider">amazon.nova-pro-v1:0 • Provider: Amazon</span>
-                        <p class="model-desc">
-                            Sitting perfectly between high reasoning and cost efficiency, providing a great balance of cost and output formatting for standard enterprise workflows.
-                        </p>
-                    </div>
-
-                    <!-- Fast + Efficient -->
-                    <div class="model-card">
-                        <div class="model-header">
-                            <h3 class="model-title">Claude Haiku 4.5</h3>
-                            <span class="model-tier" style="color: #81c995;">Tier 1 — High Throughput</span>
-                        </div>
-                        <span class="model-provider">anthropic.claude-haiku-4-5-v1:0 • Provider: Anthropic</span>
-                        <p class="model-desc">
-                            Built exactly for standard user queries rapidly. Achieves blazing fast speeds (~100+ tokens/sec) and matches reasoning capabilities of older top-tier models for high-throughput user-facing features.
-                        </p>
-                    </div>
-
-                    <!-- Ultra Cheap -->
-                    <div class="model-card">
-                        <div class="model-header">
-                            <h3 class="model-title">Amazon Nova Micro</h3>
-                            <span class="model-tier" style="color: #a8c7fa;">Tier 0 — Simple Queries</span>
-                        </div>
-                        <span class="model-provider">amazon.nova-micro-v1:0 • Provider: Amazon</span>
-                        <p class="model-desc">
-                            For basic prompt routing, categorization, single-step extractions, and simple queries. Explicitly affordable with ultra-low latency (~130+ tokens/sec).
-                        </p>
-                    </div>
-
-                    <!-- Ultra Cheap Backup -->
-                    <div class="model-card">
-                        <div class="model-header">
-                            <h3 class="model-title">Mistral Ministral 3B</h3>
-                            <span class="model-tier" style="color: #d7aefb;">Tier 0 — Fallback / Overflow</span>
-                        </div>
-                        <span class="model-provider">mistral.ministral-3b-v1:0 • Provider: Mistral AI</span>
-                        <p class="model-desc">
-                            Identical fallback from a different provider to maintain uptime if Tier 0 hits rate limits. Offers flat ultra-budget pricing and excellent parsing.
-                        </p>
+                        <span class="model-provider">Frontend inventory</span>
+                        <p class="model-desc">Model cards are populated from the current frontend catalog.</p>
                     </div>
                 </div>
             </div>

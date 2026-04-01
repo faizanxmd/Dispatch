@@ -1,35 +1,27 @@
-# Dispatch AI Hackathon
+# Dispatch AI
 
-FastAPI backend with a repo-hosted frontend for the Dispatch AI router demo.
+Dispatch AI is a FastAPI app with a built-in frontend for explainable multi-model routing on AWS Bedrock.
 
-## Routing Layer
+## What It Does
 
-The backend keeps the existing routing pipeline shape and now extends it into a real Bedrock-backed flow:
+- Routes prompts across multiple Bedrock models based on task, complexity, uncertainty, and cost
+- Uses Qwen only for ambiguous prompts
+- Tracks latency, tokens, and savings
+- Serves both the API and the frontend from one app
 
-1. Signal extraction
-2. Hard-rule prefilter
-3. Numeric uncertainty scoring
-4. Heuristic analysis
-5. Gated Qwen classification only for ambiguous prompts
-6. Score-based model selection with safety rules
-7. Final Bedrock call with latency, token, and cost metadata
+## Current Stack
 
-Current runtime targets:
+- Amazon Nova Micro: simple factual prompts
+- Mistral: cheap general prompts
+- Moonshot Kimi K2.5: safe reasoning and fallback
+- Amazon Nova Pro: code and failover
+- Z.AI GLM 5: strong reasoning
+- Qwen3 Next 80B A3B: classifier only
+- Claude Sonnet 4.6: benchmark for savings comparison only
 
-- Amazon Nova Micro for the cheapest factual work
-- Mistral for cheap general prompts
-- Claude Haiku 4.5 for mid reasoning and high-uncertainty fallback
-- Amazon Nova Pro for code-heavy prompts
-- Claude Sonnet 4.5 for stronger reasoning
-- Qwen3 Next 80B A3B as a classifier only
+## API
 
-Safety rules stay on even when Qwen is used:
-
-- high complexity never routes to the cheap tier
-- code never routes to Nova Micro
-- high uncertainty falls back to Claude Haiku
-
-The API now accepts:
+`POST /ask`
 
 ```json
 {
@@ -38,63 +30,46 @@ The API now accepts:
 }
 ```
 
-`refinement` can be `brief`, `bullet`, or `detailed`.
+`refinement` supports `brief`, `bullet`, and `detailed`.
 
-The response includes the routed model plus explainable debug fields such as `task`, `complexity`, `uncertainty`, `prefilter`, `used_qwen`, `decision_path`, `reason`, latency, tokens, and estimated cost.
+The response includes the routed model plus debug fields like `task`, `complexity`, `uncertainty`, `used_qwen`, `decision_path`, `latency_ms`, `token_count`, and pricing metadata.
 
 ## Run Locally
-
-Use one command from the repo root:
-
-```bash
-./run_dispatch.sh
-```
-
-Then open:
-
-```text
-http://127.0.0.1:8000/app/
-```
-
-The API stays available at:
-
-```text
-http://127.0.0.1:8000/ask
-http://127.0.0.1:8000/health
-```
-
-## Share On Your Local Network
-
-Run with:
-
-```bash
-HOST=0.0.0.0 ./run_dispatch.sh
-```
-
-Then open this from another computer on the same Wi-Fi:
-
-```text
-http://YOUR_COMPUTER_IP:8000/app/
-```
-
-## Team Workflow
-
-1. Push this repo to GitHub.
-2. Teammates clone the repo.
-3. Create a virtual environment and install dependencies:
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 pip install -r backend/requirements.txt
-```
-
-4. Run:
-
-```bash
 ./run_dispatch.sh
 ```
 
-## Important Note
+Open:
 
-GitHub helps you collaborate on the codebase, but GitHub alone does not host a live FastAPI app for everyone on the internet. For public access outside your local network, deploy the app to a real host such as Render, Railway, Fly.io, EC2, or another server.
+```text
+http://127.0.0.1:8000/app/
+```
+
+## Deploy
+
+Recommended: Render.
+
+Why:
+
+- one FastAPI service can host both the API and frontend
+- GitHub auto-deploys are simple
+- no separate static hosting setup is needed
+
+This repo includes [render.yaml](render.yaml) for a basic web-service deploy.
+
+Required environment variables:
+
+- `AWS_REGION`
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_SESSION_TOKEN` if your AWS credentials require it
+
+Official docs:
+
+- [Render FastAPI deploy guide](https://render.com/docs/deploy-fastapi)
+- [Render web services](https://render.com/docs/web-services)
+- [Railway FastAPI guide](https://docs.railway.com/guides/fastapi)
