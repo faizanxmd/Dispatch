@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Dispatch AI - Intelligent AI Prompt Router">
+    <title>Dispatch AI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Display:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Interactive Dot Grid -->
+    <div class="dot-grid"></div>
+    <div class="dot-grid-interactive" id="dot-grid-interactive"></div>
+
+    <!-- Top Navigation Bar -->
+    <header class="top-bar" id="top-bar">
+        <div class="top-bar-left">
+            <div class="avatar" id="user-avatar" onclick="window.location.href='profile.html'" title="Profile">S</div>
+            <button class="top-icon-btn" id="settings-btn-main" title="General Settings" onclick="window.location.href='settings.html'">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 21v-7m0-4V3m8 18v-9m0-4V3m8 18v-5m0-4V3M1 14h6m2-6h6m2 8h6"/></svg>
+            </button>
+        </div>
+        <div class="top-bar-right">
+            <button class="top-icon-btn has-label" id="models-top-btn" title="Models" onclick="window.location.href='models.html'">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                <span class="btn-label">Models</span>
+            </button>
+            <button class="top-icon-btn has-label" id="history-top-btn" title="History" onclick="window.location.href='history.html'">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <span class="btn-label">History</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="app-layout">
+        <!-- Left Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-tabs">
+                    <button class="sidebar-tab" id="new-chats-tab" onclick="window.location.href='index.html'">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>
+                        <span class="sidebar-tab-label">New Chats</span>
+                    </button>
+                    <button class="sidebar-tab active" id="analytics-tab" onclick="window.location.href='analytics.html'">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/></svg>
+                        <span class="sidebar-tab-label">Analytics</span>
+                    </button>
+                </div>
+                <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" title="Collapse sidebar">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+                </button>
+            </div>
+
+            <div class="sidebar-section" style="margin-top: 16px;">
+                <h3 class="sidebar-section-title">Your Prompts</h3>
+                <div id="analytics-prompt-list" style="display: flex; flex-direction: column; gap: 12px; margin-top: 12px;">
+                    <!-- JS populated -->
+                    <div style="color: var(--text-secondary); text-align: center; padding: 24px; font-size: 14px;">No prompts yet.</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content" id="main-content" style="align-items: flex-start;">
+            <div style="width: 100%; max-width: 1000px; margin-top: 40px; margin-bottom: 60px; display: flex; flex-direction: column; gap: 24px;">
+                
+                <!-- Analytics Header -->
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 style="margin: 0; font-size: 24px; color: var(--text-secondary);" id="selected-prompt-title">Select a prompt to view analytics</h2>
+                    <button id="clear-history-btn" style="padding: 8px 16px; border-radius: 20px; border: 1px solid var(--border-color); background: transparent; color: var(--text-primary); cursor: pointer; font-family: var(--font-family); font-size: 14px; font-weight: 500; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,100,100,0.1)'; this.style.borderColor='rgba(255,100,100,0.5)';" onmouseout="this.style.background='transparent'; this.style.borderColor='var(--border-color)';">
+                        Clear History
+                    </button>
+                </div>
+                    
+                    <div style="background: var(--bg-surface); padding: 24px; border-radius: 24px; border: 1px solid var(--border-color); box-shadow: 0 8px 24px rgba(0,0,0,0.2);">
+                        <canvas id="performanceChart" style="display: none;"></canvas>
+                        <div id="chart-placeholder" style="text-align: center; color: var(--text-secondary); padding: 60px 0;">
+                            Data will appear here
+                        </div>
+                    </div>
+                    
+                    <!-- Additional Cost Section -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px;">
+                        <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px;">
+                            <h4 style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">Model Used</h4>
+                            <div id="stat-model" style="font-size: 20px; font-weight: 500; color: #81c995;">-</div>
+                        </div>
+                        <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px;">
+                            <h4 style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">Latency</h4>
+                            <div id="stat-latency" style="font-size: 28px; font-weight: 500; color: var(--text-primary);">0ms</div>
+                        </div>
+                        <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px;">
+                            <h4 style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">Actual Cost</h4>
+                            <div id="stat-cost" style="font-size: 28px; font-weight: 500; color: #fbbc04;">$0.000000</div>
+                        </div>
+                        <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px;">
+                            <h4 style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">GLM 5 Baseline</h4>
+                            <div id="stat-baseline-cost" style="font-size: 24px; font-weight: 500; color: #a8c7fa;">$0.000000</div>
+                        </div>
+                        <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px;">
+                            <h4 style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">Savings vs GLM 5</h4>
+                            <div id="stat-savings" style="font-size: 24px; font-weight: 500; color: #81c995;">0.00%</div>
+                        </div>
+                    </div>
+            </div>
+            
+            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        </main>
+    </div>
+
+    <!-- Floating action -->
+    <button class="floating-action" id="floating-action" title="Toggle view">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+    </button>
+
+    <script src="script.js"></script>
+</body>
+</html>

@@ -388,6 +388,13 @@ def evaluate_uncertainty(
     if contains_any(prompt, {"help", "something"}) and signals.word_count <= 7:
         score += 0.15
         reasons.append("Prompt asks for help without enough topical detail.")
+    if (
+        prefilter.label == "ambiguous"
+        and signals.has_reasoning_terms
+        and contains_any(prompt, {"design", "build", "architecture", "distributed", "system", "strategy"})
+    ):
+        score += 0.2
+        reasons.append("Ambiguous prompt includes system-design reasoning cues.")
 
     score = min(1.0, round(score, 2))
     if score >= HAIKU_FALLBACK_THRESHOLD:
@@ -434,12 +441,8 @@ def heuristic_analyse(signals: SignalProfile) -> tuple[str, str, str]:
     return "general", "medium", "Heuristic analysis fell back to a medium-complexity general request."
 
 
-def should_use_qwen(prefilter: PrefilterState, uncertainty: UncertaintyState, signals: SignalProfile) -> bool:
-    return (
-        prefilter.label == "ambiguous"
-        and uncertainty.score > QWEN_UNCERTAINTY_THRESHOLD
-        and signals.word_count > 6
-    )
+def should_use_qwen(prefilter: PrefilterState, uncertainty: UncertaintyState) -> bool:
+    return prefilter.label == "ambiguous" and uncertainty.score >= QWEN_UNCERTAINTY_THRESHOLD
 
 
 def normalize_complexity(complexity: str | None) -> str:
@@ -563,16 +566,18 @@ def build_candidate_scores(
 def resolve_model(
     prefilter: PrefilterState,
     qwen_output: dict[str, object] | None,
+    heuristic_result: tuple[str, str, str] | None,
     signals: SignalProfile,
     refinement: str,
 ) -> ResolvedRoute:
     normalized_refinement = refinement if refinement in {"brief", "bullet", "detailed"} else "brief"
     overrides: list[str] = []
-    decision_steps = [f"prefilter={prefilter.label}"]
+    decision_steps: list[str] = []
     hard_override_model, hard_override_reason = direct_prefilter_override(prefilter)
     if hard_override_model:
         decision_steps.extend(
             [
+                "classification=prefilter_override",
                 "qwen_used=false",
                 f"task={normalize_task(prefilter.task)}",
                 f"complexity={normalize_complexity(prefilter.complexity)}",
@@ -585,7 +590,7 @@ def resolve_model(
             complexity=normalize_complexity(prefilter.complexity),
             task_source="prefilter_hard_override",
             complexity_source="prefilter_hard_override",
-            reason=f"Deterministic prefilter override selected the final model ({hard_override_reason}).",
+            reason=f"{hard_override_reason}: Deterministic prefilter override selected the final model.",
             recommended_tier=recommended_tier_for_model(hard_override_model),
             decision_steps=decision_steps,
             overrides=overrides,
@@ -593,52 +598,71 @@ def resolve_model(
             analysis_backend="deterministic_prefilter_override",
         )
 
-    heuristic_task, heuristic_complexity, heuristic_reason = heuristic_analyse(signals)
+    qwen_used = qwen_output is not None
+    confidence = qwen_confidence_value(qwen_output)
     if prefilter.task and prefilter.complexity and prefilter.label != "ambiguous":
         task = normalize_task(prefilter.task)
         complexity = normalize_complexity(prefilter.complexity)
         task_source = "prefilter"
         complexity_source = "prefilter"
-        reason = prefilter.reason
+        reason = f"prefilter_direct_match: {prefilter.reason}"
         analysis_backend = "deterministic_prefilter_policy"
         decision_steps.append("classification=prefilter")
-    else:
-        task = normalize_task(heuristic_task)
-        complexity = normalize_complexity(heuristic_complexity)
-        task_source = "heuristic_analysis"
-        complexity_source = "heuristic_analysis"
-        reason = heuristic_reason
-        analysis_backend = "deterministic_heuristic_policy"
-        decision_steps.append("classification=heuristic")
-
-    qwen_used = qwen_output is not None
-    decision_steps.append(f"qwen_used={str(qwen_used).lower()}")
-    confidence = qwen_confidence_value(qwen_output)
-    if qwen_used:
-        decision_steps.append(f"confidence={(confidence or 0.0):.2f}")
+        decision_steps.append("qwen_used=false")
+    elif qwen_used:
+        task = normalize_task(str(qwen_output.get("task") or "general"))
+        complexity = normalize_complexity(str(qwen_output.get("complexity") or "medium"))
+        task_source = "qwen"
+        complexity_source = "qwen"
+        reason = "qwen_triggered_by_uncertainty: High-uncertainty ambiguous prompt triggered Qwen classification."
+        analysis_backend = "deterministic_qwen_policy"
+        decision_steps.extend(
+            [
+                "classification=qwen",
+                "qwen_used=true",
+                f"confidence={(confidence or 0.0):.2f}",
+            ]
+        )
         if (confidence or 0.0) < 0.6:
             overrides.append("low_qwen_confidence_fallback")
-            decision_steps.append(f"final_model={CLAUDE_HAIKU_MODEL_ID}")
+            complexity = max_complexity(complexity, "medium")
+            decision_steps.extend(
+                [
+                    f"task={task}",
+                    f"complexity={complexity}",
+                    f"final_model={CLAUDE_HAIKU_MODEL_ID}",
+                ]
+            )
             return ResolvedRoute(
                 model_id=CLAUDE_HAIKU_MODEL_ID,
                 task=task,
-                complexity=max_complexity(complexity, "medium"),
+                complexity=complexity,
                 task_source=task_source,
                 complexity_source=complexity_source,
-                reason="Low Qwen confidence triggered the deterministic Claude Haiku fallback.",
+                reason=(
+                    "qwen_triggered_by_uncertainty: "
+                    "Low-confidence Qwen output triggered the safe Kimi K2.5 fallback."
+                ),
                 recommended_tier=recommended_tier_for_model(CLAUDE_HAIKU_MODEL_ID),
                 decision_steps=decision_steps,
                 overrides=overrides,
                 qwen_confidence=confidence,
                 analysis_backend="deterministic_qwen_fallback",
             )
-
-        task = normalize_task(str(qwen_output.get("task") or task))
-        complexity = normalize_complexity(str(qwen_output.get("complexity") or complexity))
-        task_source = "qwen"
-        complexity_source = "qwen"
-        analysis_backend = "deterministic_qwen_policy"
-        reason = "High-confidence Qwen classification supplied the routing task and complexity."
+    else:
+        heuristic_task, heuristic_complexity, heuristic_reason = heuristic_result or heuristic_analyse(signals)
+        task = normalize_task(heuristic_task)
+        complexity = normalize_complexity(heuristic_complexity)
+        task_source = "heuristic_analysis"
+        complexity_source = "heuristic_analysis"
+        reason = f"heuristic_used_low_uncertainty: {heuristic_reason}"
+        analysis_backend = "deterministic_heuristic_policy"
+        decision_steps.extend(
+            [
+                "classification=heuristic",
+                "qwen_used=false",
+            ]
+        )
 
     if prefilter.task in {"code", "math"} and task != prefilter.task:
         task = prefilter.task
@@ -658,8 +682,22 @@ def resolve_model(
         complexity = max_complexity(complexity, "medium")
         complexity_source = "signal_override"
         overrides.append("signal_override_math")
+    elif (
+        prefilter.label == "ambiguous"
+        and signals.has_reasoning_terms
+        and not signals.has_code_terms
+        and not signals.has_math_terms
+        and task != "reasoning"
+        and contains_any(signals.normalized, {"design", "build", "architecture", "distributed", "system", "strategy"})
+    ):
+        task = "reasoning"
+        task_source = "signal_override"
+        target_complexity = "high" if contains_any(signals.normalized, {"design", "distributed", "architecture", "system"}) else "medium"
+        complexity = max_complexity(complexity, target_complexity)
+        complexity_source = "signal_override"
+        overrides.append("signal_override_reasoning")
 
-    if prefilter.label == "ambiguous" and not qwen_used and looks_like_context_missing(signals):
+    if prefilter.label == "ambiguous" and looks_like_context_missing(signals) and signals.word_count <= 4:
         overrides.append("ambiguous_context_fallback")
         decision_steps.extend(
             [
@@ -674,7 +712,13 @@ def resolve_model(
             complexity=max_complexity(complexity, "medium"),
             task_source=task_source,
             complexity_source=complexity_source,
-            reason="Ambiguous follow-up style prompt fell back to Claude Haiku for a safer recovery path.",
+            reason=(
+                "qwen_triggered_by_uncertainty: Ambiguous follow-up style prompt fell back to Kimi K2.5 "
+                "for a safer recovery path."
+                if qwen_used
+                else "heuristic_used_low_uncertainty: Ambiguous follow-up style prompt fell back to "
+                "Kimi K2.5 for a safer recovery path."
+            ),
             recommended_tier=recommended_tier_for_model(CLAUDE_HAIKU_MODEL_ID),
             decision_steps=decision_steps,
             overrides=overrides,
@@ -715,19 +759,28 @@ def build_decision(prompt: str, refinement: str = "brief", classifier=None) -> D
     prefilter = classify_prefilter(signals)
     uncertainty_state = evaluate_uncertainty(signals, prefilter)
     qwen_result: dict[str, object] = {}
+    heuristic_result: tuple[str, str, str] | None = None
     used_qwen = False
 
-    if should_use_qwen(prefilter, uncertainty_state, signals) and classifier:
+    if should_use_qwen(prefilter, uncertainty_state) and classifier:
         used_qwen = True
         qwen_result = classifier(prompt)
+    elif prefilter.label == "ambiguous":
+        heuristic_result = heuristic_analyse(signals)
 
     resolved = resolve_model(
         prefilter=prefilter,
         qwen_output=qwen_result if used_qwen else None,
+        heuristic_result=heuristic_result,
         signals=signals,
         refinement=normalized_refinement,
     )
-    route_steps = ["signal_extraction", *resolved.decision_steps]
+    route_steps = [
+        "signal_extraction",
+        f"prefilter={prefilter.label}",
+        f"uncertainty_check={uncertainty_state.score:.2f}",
+        *resolved.decision_steps,
+    ]
     candidate_scores = build_candidate_scores(
         final_model_id=resolved.model_id,
         task=resolved.task,

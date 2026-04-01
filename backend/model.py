@@ -13,30 +13,38 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 logger = logging.getLogger(__name__)
 
+BEDROCK_CONNECT_TIMEOUT_SECONDS = int(os.getenv("BEDROCK_CONNECT_TIMEOUT_SECONDS", "5"))
+BEDROCK_READ_TIMEOUT_SECONDS = int(os.getenv("BEDROCK_READ_TIMEOUT_SECONDS", "45"))
+BEDROCK_MAX_ATTEMPTS = int(os.getenv("BEDROCK_MAX_ATTEMPTS", "3"))
+
 NOVA_MICRO_MODEL_ID = os.getenv("BEDROCK_NOVA_MICRO_MODEL_ID", "amazon.nova-micro-v1:0")
 MISTRAL_MODEL_ID = os.getenv(
     "BEDROCK_MISTRAL_MODEL_ID",
     "mistral.ministral-3-8b-instruct",
 )
-CLAUDE_HAIKU_MODEL_ID = os.getenv(
-    "BEDROCK_CLAUDE_HAIKU_MODEL_ID",
-    "anthropic.claude-haiku-4-5-20251001-v1:0",
+KIMI_K25_MODEL_ID = (
+    os.getenv("BEDROCK_KIMI_K25_MODEL_ID")
+    or "moonshotai.kimi-k2.5"
 )
 NOVA_PRO_MODEL_ID = os.getenv("BEDROCK_NOVA_PRO_MODEL_ID", "amazon.nova-pro-v1:0")
-CLAUDE_SONNET_MODEL_ID = os.getenv(
-    "BEDROCK_CLAUDE_SONNET_MODEL_ID",
-    "anthropic.claude-sonnet-4-5-20250929-v1:0",
+KIMI_MODEL_ID_ALIASES = {
+    "moonshotai.kimi-k2-thinking": "moonshot.kimi-k2-thinking",
+}
+_raw_glm_5_model_id = (
+    os.getenv("BEDROCK_GLM_5_MODEL_ID")
+    or os.getenv("BEDROCK_KIMI_K2_THINKING_MODEL_ID")
+    or "zai.glm-5"
 )
+GLM_5_MODEL_ID = KIMI_MODEL_ID_ALIASES.get(
+    _raw_glm_5_model_id,
+    _raw_glm_5_model_id,
+)
+CLAUDE_HAIKU_MODEL_ID = KIMI_K25_MODEL_ID
+CLAUDE_SONNET_MODEL_ID = GLM_5_MODEL_ID
 QWEN_MODEL_ID = os.getenv("BEDROCK_QWEN_MODEL_ID", "qwen.qwen3-next-80b-a3b")
 
-CLAUDE_HAIKU_INFERENCE_PROFILE_ID = os.getenv(
-    "BEDROCK_CLAUDE_HAIKU_INFERENCE_PROFILE_ID",
-    "global.anthropic.claude-haiku-4-5-20251001-v1:0",
-)
-CLAUDE_SONNET_INFERENCE_PROFILE_ID = os.getenv(
-    "BEDROCK_CLAUDE_SONNET_INFERENCE_PROFILE_ID",
-    "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
-)
+CLAUDE_HAIKU_INFERENCE_PROFILE_ID = os.getenv("BEDROCK_KIMI_K25_INFERENCE_PROFILE_ID")
+CLAUDE_SONNET_INFERENCE_PROFILE_ID = os.getenv("BEDROCK_GLM_5_INFERENCE_PROFILE_ID")
 
 QWEN_CLASSIFIER_SYSTEM_PROMPT = """Return ONLY JSON:
 {
@@ -90,11 +98,19 @@ MODEL_PROFILES = {
     ),
     CLAUDE_HAIKU_MODEL_ID: ModelProfile(
         model_id=CLAUDE_HAIKU_MODEL_ID,
-        display_name="Claude Haiku 4.5",
-        provider="anthropic",
+        display_name="Moonshot Kimi K2.5",
+        provider="moonshot",
         role="mid_reasoning",
-        input_price_per_million=float(os.getenv("BEDROCK_PRICE_CLAUDE_HAIKU_INPUT", "1.0")),
-        output_price_per_million=float(os.getenv("BEDROCK_PRICE_CLAUDE_HAIKU_OUTPUT", "5.0")),
+        input_price_per_million=float(
+            os.getenv("BEDROCK_PRICE_KIMI_K25_INPUT")
+            or os.getenv("BEDROCK_PRICE_CLAUDE_HAIKU_INPUT")
+            or "0.6"
+        ),
+        output_price_per_million=float(
+            os.getenv("BEDROCK_PRICE_KIMI_K25_OUTPUT")
+            or os.getenv("BEDROCK_PRICE_CLAUDE_HAIKU_OUTPUT")
+            or "3.0"
+        ),
         default_max_tokens=260,
         inference_profile_id=CLAUDE_HAIKU_INFERENCE_PROFILE_ID,
     ),
@@ -109,11 +125,19 @@ MODEL_PROFILES = {
     ),
     CLAUDE_SONNET_MODEL_ID: ModelProfile(
         model_id=CLAUDE_SONNET_MODEL_ID,
-        display_name="Claude Sonnet 4.5",
-        provider="anthropic",
+        display_name="Z.AI GLM 5",
+        provider="zai",
         role="strong_reasoning",
-        input_price_per_million=float(os.getenv("BEDROCK_PRICE_CLAUDE_SONNET_INPUT", "3.0")),
-        output_price_per_million=float(os.getenv("BEDROCK_PRICE_CLAUDE_SONNET_OUTPUT", "15.0")),
+        input_price_per_million=float(
+            os.getenv("BEDROCK_PRICE_GLM_5_INPUT")
+            or os.getenv("BEDROCK_PRICE_CLAUDE_SONNET_INPUT")
+            or "0.6"
+        ),
+        output_price_per_million=float(
+            os.getenv("BEDROCK_PRICE_GLM_5_OUTPUT")
+            or os.getenv("BEDROCK_PRICE_CLAUDE_SONNET_OUTPUT")
+            or "2.5"
+        ),
         default_max_tokens=380,
         inference_profile_id=CLAUDE_SONNET_INFERENCE_PROFILE_ID,
     ),
@@ -131,9 +155,12 @@ MODEL_PROFILES = {
 }
 
 MODEL_ALIASES = {
-    CLAUDE_HAIKU_INFERENCE_PROFILE_ID: CLAUDE_HAIKU_MODEL_ID,
-    CLAUDE_SONNET_INFERENCE_PROFILE_ID: CLAUDE_SONNET_MODEL_ID,
+    "moonshotai.kimi-k2-thinking": CLAUDE_SONNET_MODEL_ID,
 }
+if CLAUDE_HAIKU_INFERENCE_PROFILE_ID:
+    MODEL_ALIASES[CLAUDE_HAIKU_INFERENCE_PROFILE_ID] = CLAUDE_HAIKU_MODEL_ID
+if CLAUDE_SONNET_INFERENCE_PROFILE_ID:
+    MODEL_ALIASES[CLAUDE_SONNET_INFERENCE_PROFILE_ID] = CLAUDE_SONNET_MODEL_ID
 
 DEFAULT_SYSTEM_PROMPT = (
     "You are a precise assistant helping power a production routing demo. "
@@ -170,9 +197,9 @@ def _get_client():
         "bedrock-runtime",
         region_name=_resolve_region(),
         config=Config(
-            connect_timeout=5,
-            read_timeout=120,
-            retries={"max_attempts": 3, "mode": "standard"},
+            connect_timeout=BEDROCK_CONNECT_TIMEOUT_SECONDS,
+            read_timeout=BEDROCK_READ_TIMEOUT_SECONDS,
+            retries={"max_attempts": BEDROCK_MAX_ATTEMPTS, "mode": "standard"},
         ),
     )
 
@@ -224,6 +251,13 @@ def _build_converse_request(
     include_refinement: bool = True,
 ) -> dict:
     composed_system_prompt = _compose_system_prompt(system_prompt, refinement, include_refinement)
+    inference_config = {
+        "maxTokens": _resolve_max_tokens(profile, refinement, max_tokens),
+        "temperature": profile.temperature if temperature is None else temperature,
+    }
+    if "anthropic" not in profile.model_id.lower():
+        inference_config["topP"] = profile.top_p if top_p is None else top_p
+
     request = {
         "messages": [
             {
@@ -231,11 +265,7 @@ def _build_converse_request(
                 "content": [{"text": prompt}],
             }
         ],
-        "inferenceConfig": {
-            "maxTokens": _resolve_max_tokens(profile, refinement, max_tokens),
-            "temperature": profile.temperature if temperature is None else temperature,
-            "topP": profile.top_p if top_p is None else top_p,
-        },
+        "inferenceConfig": inference_config,
     }
     if composed_system_prompt:
         request["system"] = [{"text": composed_system_prompt}]

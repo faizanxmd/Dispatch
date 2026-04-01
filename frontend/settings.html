@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Dispatch AI - Intelligent AI Prompt Router">
+    <title>Dispatch AI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Display:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Interactive Dot Grid -->
+    <div class="dot-grid"></div>
+    <div class="dot-grid-interactive" id="dot-grid-interactive"></div>
+
+    <!-- Top Navigation Bar -->
+    <header class="top-bar" id="top-bar">
+        <div class="top-bar-left">
+            <div class="avatar" id="user-avatar" onclick="window.location.href='profile.html'" title="Profile">S</div>
+            <button class="top-icon-btn" id="settings-btn-main" title="General Settings" onclick="window.location.href='settings.html'">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 21v-7m0-4V3m8 18v-9m0-4V3m8 18v-5m0-4V3M1 14h6m2-6h6m2 8h6"/></svg>
+            </button>
+        </div>
+        <div class="top-bar-right">
+            <button class="top-icon-btn has-label" id="models-top-btn" title="Models" onclick="window.location.href='models.html'">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                <span class="btn-label">Models</span>
+            </button>
+            <button class="top-icon-btn has-label" id="history-top-btn" title="History" onclick="window.location.href='history.html'">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <span class="btn-label">History</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="app-layout">
+        <!-- Left Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-tabs">
+                    <button class="sidebar-tab active" id="new-chats-tab" onclick="window.location.href='index.html'">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>
+                        <span class="sidebar-tab-label">New Chats</span>
+                    </button>
+                    <button class="sidebar-tab" id="analytics-tab" onclick="window.location.href='analytics.html'">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/></svg>
+                        <span class="sidebar-tab-label">Analytics</span>
+                    </button>
+                </div>
+                <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" title="Collapse sidebar">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content" id="main-content" style="align-items: flex-start;">
+            <div style="width: 100%; max-width: 1000px; margin-top: 24px;">
+                <h1 style="margin-bottom: 24px; font-size: 28px;">Global Settings</h1>
+                
+                <div class="settings-container">
+                    <!-- Sidebar -->
+                    <div class="settings-sidebar">
+                        <button class="settings-tab active" onclick="showSettingsTab('general')">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                            General
+                        </button>
+                        <button class="settings-tab" onclick="showSettingsTab('routing')">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                            Routing Rules
+                        </button>
+                        <button class="settings-tab">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                            Security
+                        </button>
+                        <button class="settings-tab">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                            Notifications
+                        </button>
+                        <button class="settings-tab">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+                            Billing
+                        </button>
+                        <button class="settings-tab danger" style="margin-top: 16px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                            Danger Zone
+                        </button>
+                    </div>
+
+                    <!-- Content -->
+                    <div class="settings-content">
+                        <!-- General Tab -->
+                        <div id="tab-general">
+                            <div class="settings-section">
+                                <h3 class="settings-section-title">Organization Details</h3>
+                                <div class="settings-form-row">
+                                    <div class="settings-form-group">
+                                        <label class="settings-label">Organization Name</label>
+                                        <input type="text" class="settings-input" id="settings-org-name" value="Dispatch AI">
+                                    </div>
+                                    <div class="settings-form-group">
+                                        <label class="settings-label">Node ID</label>
+                                        <input type="text" class="settings-input" id="settings-node-id" value="Router Node 01">
+                                    </div>
+                                </div>
+                                <div class="settings-form-row">
+                                    <div class="settings-form-group">
+                                        <label class="settings-label">Region</label>
+                                        <select class="settings-select" id="settings-region">
+                                            <option>US-East-1</option>
+                                            <option>US-West-2</option>
+                                            <option>EU-Central-1</option>
+                                        </select>
+                                    </div>
+                                    <div class="settings-form-group">
+                                        <label class="settings-label">Timezone</label>
+                                        <select class="settings-select" id="settings-timezone">
+                                            <option>UTC+5:30 (IST)</option>
+                                            <option>UTC-8:00 (PST)</option>
+                                            <option>UTC+0:00 (GMT)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="settings-form-row">
+                                    <div class="settings-form-group">
+                                        <label class="settings-label">Default System Prompt</label>
+                                        <input type="text" class="settings-input" id="settings-system-prompt" value="You are a helpful assistant.">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="settings-section">
+                                <h3 class="settings-section-title">Display Preferences</h3>
+                                <div class="settings-toggle-row">
+                                    <div class="settings-toggle-info">
+                                        <span class="settings-toggle-title">Compact Sidebar</span>
+                                        <span class="settings-toggle-desc">Start with sidebar collapsed by default</span>
+                                    </div>
+                                    <label class="switch">
+                                        <input type="checkbox" id="settings-compact-sidebar">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="settings-toggle-row">
+                                    <div class="settings-toggle-info">
+                                        <span class="settings-toggle-title">Show Token Counter</span>
+                                        <span class="settings-toggle-desc">Display token usage on every response</span>
+                                    </div>
+                                    <label class="switch">
+                                        <input type="checkbox" id="settings-show-tokens" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="settings-toggle-row">
+                                    <div class="settings-toggle-info">
+                                        <span class="settings-toggle-title">Auto-refresh Dashboard</span>
+                                        <span class="settings-toggle-desc">Refresh live metrics every 30 seconds</span>
+                                    </div>
+                                    <label class="switch">
+                                        <input type="checkbox" id="settings-animations" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Routing Rules Tab -->
+                        <div id="tab-routing" style="display: none;">
+                            <div class="settings-section">
+                                <h3 class="settings-section-title">Routing Strategy</h3>
+                                <div class="settings-form-row">
+                                    <div class="settings-form-group">
+                                        <label class="settings-label">Default Strategy</label>
+                                        <select class="settings-select" id="settings-strategy">
+                                            <option>Auto-Select (Recommended)</option>
+                                            <option>Cost-Optimized</option>
+                                            <option>Performance-Optimized</option>
+                                        </select>
+                                    </div>
+                                    <div class="settings-form-group">
+                                        <label class="settings-label">Fallback Model</label>
+                                        <select class="settings-select" id="settings-fallback-model">
+                                            <option>Amazon Nova Pro</option>
+                                            <option>Moonshot Kimi K2.5</option>
+                                            <option>Mistral Ministral 3 8B</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="settings-form-row">
+                                    <div class="settings-form-group">
+                                        <label class="settings-label">Max Latency Threshold (MS): <span id="val-latency">150</span></label>
+                                        <input type="range" class="range-slider" id="settings-max-latency" min="20" max="500" value="150" oninput="document.getElementById('val-latency').textContent = this.value">
+                                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary);">
+                                            <span>20ms</span><span>500ms</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="settings-section">
+                                <h3 class="settings-section-title">Traffic Controls</h3>
+                                <div class="settings-toggle-row">
+                                    <div class="settings-toggle-info">
+                                        <span class="settings-toggle-title">Rate Limiting</span>
+                                        <span class="settings-toggle-desc">Cap requests to 1,000/min per node</span>
+                                    </div>
+                                    <label class="switch">
+                                        <input type="checkbox" id="settings-rate-limit" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="settings-toggle-row">
+                                    <div class="settings-toggle-info">
+                                        <span class="settings-toggle-title">Automatic Failover</span>
+                                        <span class="settings-toggle-desc">Re-route on node failure automatically</span>
+                                    </div>
+                                    <label class="switch">
+                                        <input type="checkbox" id="settings-auto-failover" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="settings-toggle-row">
+                                    <div class="settings-toggle-info">
+                                        <span class="settings-toggle-title">Cost Cap Enforcement</span>
+                                        <span class="settings-toggle-desc">Block routing if estimated cost exceeds budget</span>
+                                    </div>
+                                    <label class="switch">
+                                        <input type="checkbox" id="settings-cost-cap">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px;">
+                                <button id="settings-cancel-btn" style="padding: 10px 20px; border-radius: 20px; border: 1px solid var(--border-color); background: transparent; color: var(--text-primary); cursor: pointer; font-family: var(--font-family); font-size: 14px; font-weight: 500; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">Cancel</button>
+                                <button id="settings-save-btn" style="padding: 10px 20px; border-radius: 20px; border: none; background: #8a2be2; color: #fff; cursor: pointer; font-family: var(--font-family); font-size: 14px; font-weight: 500; transition: background 0.2s;" onmouseover="this.style.background='#7b27c9'" onmouseout="this.style.background='#8a2be2'">Save Changes</button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <script>
+                    function showSettingsTab(tabName) {
+                        document.getElementById('tab-general').style.display = 'none';
+                        document.getElementById('tab-routing').style.display = 'none';
+                        
+                        document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
+                        
+                        if(tabName === 'general') {
+                            document.getElementById('tab-general').style.display = 'block';
+                            document.querySelectorAll('.settings-tab')[0].classList.add('active');
+                        } else if(tabName === 'routing') {
+                            document.getElementById('tab-routing').style.display = 'block';
+                            document.querySelectorAll('.settings-tab')[1].classList.add('active');
+                        }
+                    }
+                </script>
+            </div>
+        </main>
+    </div>
+
+    <!-- Floating action -->
+    <button class="floating-action" id="floating-action" title="Toggle view">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+    </button>
+
+    <script src="script.js"></script>
+</body>
+</html>
