@@ -176,12 +176,67 @@ class DecisionState:
     analysis_backend: str
     used_qwen: bool
     refinement: str
+    qwen_confidence: float | None
     qwen_result: dict[str, object]
+    overrides: list[str]
     classifier_cost: float
     classifier_latency_ms: int
     classifier_token_usage: dict[str, int | None]
     uncertainty_reasons: list[str]
     signals: dict[str, object]
+
+
+@dataclass(frozen=True)
+class ResolvedRoute:
+    model_id: str
+    task: str
+    complexity: str
+    task_source: str
+    complexity_source: str
+    reason: str
+    recommended_tier: str
+    decision_steps: list[str]
+    overrides: list[str]
+    qwen_confidence: float | None
+    analysis_backend: str
+
+
+COMPLEXITY_LEVELS = {"low": 0, "medium": 1, "high": 2}
+QWEN_CONFIDENCE_MAP = {"low": 0.35, "high": 0.85}
+MODEL_TIER_MAP = {
+    NOVA_MICRO_MODEL_ID: "cheap",
+    MISTRAL_MODEL_ID: "general",
+    CLAUDE_HAIKU_MODEL_ID: "safe_reasoning",
+    NOVA_PRO_MODEL_ID: "code",
+    CLAUDE_SONNET_MODEL_ID: "strong",
+}
+ROUTING_TABLE = {
+    "code": {
+        "low": MISTRAL_MODEL_ID,
+        "medium": NOVA_PRO_MODEL_ID,
+        "high": NOVA_PRO_MODEL_ID,
+    },
+    "math": {
+        "low": NOVA_MICRO_MODEL_ID,
+        "medium": CLAUDE_HAIKU_MODEL_ID,
+        "high": CLAUDE_SONNET_MODEL_ID,
+    },
+    "reasoning": {
+        "low": MISTRAL_MODEL_ID,
+        "medium": CLAUDE_HAIKU_MODEL_ID,
+        "high": CLAUDE_SONNET_MODEL_ID,
+    },
+    "general": {
+        "low": NOVA_MICRO_MODEL_ID,
+        "medium": CLAUDE_HAIKU_MODEL_ID,
+        "high": CLAUDE_HAIKU_MODEL_ID,
+    },
+    "factual": {
+        "low": NOVA_MICRO_MODEL_ID,
+        "medium": CLAUDE_HAIKU_MODEL_ID,
+        "high": CLAUDE_HAIKU_MODEL_ID,
+    },
+}
 
 
 def contains_term(text: str, term: str) -> bool:
@@ -387,26 +442,93 @@ def should_use_qwen(prefilter: PrefilterState, uncertainty: UncertaintyState, si
     )
 
 
-def select_model_tier(task: str, complexity: str, uncertainty_score: float, refinement: str) -> str:
-    if uncertainty_score >= HAIKU_FALLBACK_THRESHOLD:
-        return "safe_reasoning"
-    if task == "code":
-        return "code"
-    if task == "reasoning":
-        return "strong" if complexity == "high" or refinement == "detailed" else "reasoning"
-    if task == "math":
-        return "cheap" if complexity == "low" else "reasoning"
-    if task == "factual":
-        return "cheap" if complexity == "low" else "reasoning"
-    return "cheap" if complexity == "low" and refinement == "brief" else "general"
+def normalize_complexity(complexity: str | None) -> str:
+    if complexity in COMPLEXITY_LEVELS:
+        return complexity
+    return "medium"
 
 
-def score_models(
-    signals: SignalProfile,
+def normalize_task(task: str | None) -> str:
+    if task in ROUTING_TABLE:
+        return str(task)
+    return "general"
+
+
+def max_complexity(left: str, right: str) -> str:
+    normalized_left = normalize_complexity(left)
+    normalized_right = normalize_complexity(right)
+    if COMPLEXITY_LEVELS[normalized_left] >= COMPLEXITY_LEVELS[normalized_right]:
+        return normalized_left
+    return normalized_right
+
+
+def qwen_confidence_value(qwen_output: dict[str, object] | None) -> float | None:
+    if not qwen_output:
+        return None
+    raw_confidence = qwen_output.get("confidence")
+    if isinstance(raw_confidence, (int, float)):
+        return max(0.0, min(1.0, float(raw_confidence)))
+    if isinstance(raw_confidence, str):
+        return QWEN_CONFIDENCE_MAP.get(raw_confidence.strip().lower(), 0.0)
+    return 0.0
+
+
+def recommended_tier_for_model(model_id: str) -> str:
+    return MODEL_TIER_MAP.get(model_id, "general")
+
+
+def direct_prefilter_override(prefilter: PrefilterState) -> tuple[str | None, str | None]:
+    if prefilter.complexity == "low" and prefilter.label in {"greeting_direct", "math_direct", "factual_direct"}:
+        return NOVA_MICRO_MODEL_ID, "prefilter_direct_cheap"
+    if prefilter.complexity == "high" and prefilter.label in {"reasoning_direct", "math_direct"}:
+        return CLAUDE_SONNET_MODEL_ID, "prefilter_direct_strong"
+    return None, None
+
+
+def apply_refinement_bias(
+    model_id: str,
     task: str,
     complexity: str,
-    uncertainty_score: float,
     refinement: str,
+) -> tuple[str, str | None]:
+    complexity = normalize_complexity(complexity)
+
+    if refinement == "brief":
+        if complexity == "high":
+            return model_id, None
+        if model_id == CLAUDE_SONNET_MODEL_ID and task == "reasoning" and complexity == "medium":
+            return CLAUDE_HAIKU_MODEL_ID, "brief_bias_downgrade"
+        if model_id == CLAUDE_HAIKU_MODEL_ID and task in {"general", "factual"}:
+            return MISTRAL_MODEL_ID, "brief_bias_downgrade"
+        if model_id == MISTRAL_MODEL_ID and task in {"general", "factual"} and complexity == "low":
+            return NOVA_MICRO_MODEL_ID, "brief_bias_downgrade"
+        return model_id, None
+
+    if refinement == "bullet":
+        if task == "code" and model_id != NOVA_PRO_MODEL_ID:
+            return NOVA_PRO_MODEL_ID, "bullet_bias_structured_code"
+        if task in {"general", "factual", "reasoning"} and model_id in {NOVA_MICRO_MODEL_ID, MISTRAL_MODEL_ID}:
+            return CLAUDE_HAIKU_MODEL_ID, "bullet_bias_structured_answer"
+        return model_id, None
+
+    if refinement == "detailed":
+        if task == "code" and model_id == MISTRAL_MODEL_ID:
+            return NOVA_PRO_MODEL_ID, "detailed_bias_upgrade"
+        if task in {"general", "factual", "reasoning"} and model_id == NOVA_MICRO_MODEL_ID:
+            return MISTRAL_MODEL_ID, "detailed_bias_upgrade"
+        if task in {"general", "factual", "reasoning"} and model_id == MISTRAL_MODEL_ID:
+            return CLAUDE_HAIKU_MODEL_ID, "detailed_bias_upgrade"
+        if task in {"reasoning", "math"} and model_id == CLAUDE_HAIKU_MODEL_ID and complexity in {"medium", "high"}:
+            return CLAUDE_SONNET_MODEL_ID, "detailed_bias_upgrade"
+        return model_id, None
+
+    return model_id, None
+
+
+def build_candidate_scores(
+    final_model_id: str,
+    task: str,
+    complexity: str,
 ) -> dict[str, int]:
     scores = {
         NOVA_MICRO_MODEL_ID: 0,
@@ -415,100 +537,176 @@ def score_models(
         NOVA_PRO_MODEL_ID: 0,
         CLAUDE_SONNET_MODEL_ID: 0,
     }
+    normalized_task = normalize_task(task)
+    normalized_complexity = normalize_complexity(complexity)
+    base_model_id = ROUTING_TABLE[normalized_task][normalized_complexity]
+    scores[base_model_id] = 90
+    scores[final_model_id] = 100
 
-    if task == "factual":
-        scores[NOVA_MICRO_MODEL_ID] += 5
-        scores[MISTRAL_MODEL_ID] += 2
-        scores[CLAUDE_HAIKU_MODEL_ID] += 1
-    elif task == "general":
-        scores[MISTRAL_MODEL_ID] += 5
-        scores[NOVA_MICRO_MODEL_ID] += 1
-        scores[CLAUDE_HAIKU_MODEL_ID] += 1
-    elif task == "reasoning":
-        scores[CLAUDE_HAIKU_MODEL_ID] += 3
-        scores[CLAUDE_SONNET_MODEL_ID] += 4
-    elif task == "code":
-        scores[NOVA_PRO_MODEL_ID] += 6
-        scores[CLAUDE_HAIKU_MODEL_ID] += 1
-        scores[CLAUDE_SONNET_MODEL_ID] += 1
-    elif task == "math":
-        scores[NOVA_MICRO_MODEL_ID] += 2
-        scores[MISTRAL_MODEL_ID] += 1
-        scores[CLAUDE_HAIKU_MODEL_ID] += 2
-        scores[CLAUDE_SONNET_MODEL_ID] += 2
-
-    if complexity == "low":
-        scores[NOVA_MICRO_MODEL_ID] += 2
-        scores[MISTRAL_MODEL_ID] += 2
-    elif complexity == "medium":
-        scores[MISTRAL_MODEL_ID] += 1
-        scores[CLAUDE_HAIKU_MODEL_ID] += 2
-        if task == "code":
-            scores[NOVA_PRO_MODEL_ID] += 2
-    elif complexity == "high":
-        scores[CLAUDE_HAIKU_MODEL_ID] += 2
-        scores[CLAUDE_SONNET_MODEL_ID] += 4
-        if task == "code":
-            scores[NOVA_PRO_MODEL_ID] += 2
-
-    if uncertainty_score > QWEN_UNCERTAINTY_THRESHOLD:
-        scores[CLAUDE_HAIKU_MODEL_ID] += 3
-        scores[CLAUDE_SONNET_MODEL_ID] += 1
-    else:
-        scores[NOVA_MICRO_MODEL_ID] += 1
-        scores[MISTRAL_MODEL_ID] += 1
-
-    if signals.starts_factual and complexity == "low":
-        scores[NOVA_MICRO_MODEL_ID] += 1
-    if signals.word_count >= 14:
-        scores[CLAUDE_HAIKU_MODEL_ID] += 1
-        scores[CLAUDE_SONNET_MODEL_ID] += 1
-
-    if refinement == "brief":
-        scores[NOVA_MICRO_MODEL_ID] += 2
-        scores[MISTRAL_MODEL_ID] += 2
-        scores[CLAUDE_SONNET_MODEL_ID] -= 1
-    elif refinement == "bullet":
-        scores[CLAUDE_HAIKU_MODEL_ID] += 2
-        scores[NOVA_PRO_MODEL_ID] += 2
-    elif refinement == "detailed":
-        scores[CLAUDE_SONNET_MODEL_ID] += 2
-        scores[CLAUDE_HAIKU_MODEL_ID] += 1
+    if normalized_task == "code":
+        scores[MISTRAL_MODEL_ID] = max(scores[MISTRAL_MODEL_ID], 40)
+        scores[NOVA_PRO_MODEL_ID] = max(scores[NOVA_PRO_MODEL_ID], 70)
+    elif normalized_task in {"general", "factual"}:
+        scores[NOVA_MICRO_MODEL_ID] = max(scores[NOVA_MICRO_MODEL_ID], 60)
+        scores[CLAUDE_HAIKU_MODEL_ID] = max(scores[CLAUDE_HAIKU_MODEL_ID], 30)
+    elif normalized_task == "math":
+        scores[CLAUDE_HAIKU_MODEL_ID] = max(scores[CLAUDE_HAIKU_MODEL_ID], 40)
+        scores[CLAUDE_SONNET_MODEL_ID] = max(scores[CLAUDE_SONNET_MODEL_ID], 60)
+    elif normalized_task == "reasoning":
+        scores[MISTRAL_MODEL_ID] = max(scores[MISTRAL_MODEL_ID], 30)
+        scores[CLAUDE_HAIKU_MODEL_ID] = max(scores[CLAUDE_HAIKU_MODEL_ID], 60)
+        scores[CLAUDE_SONNET_MODEL_ID] = max(scores[CLAUDE_SONNET_MODEL_ID], 80)
 
     return scores
 
 
-def apply_safety_rules(
-    candidate_scores: dict[str, int],
-    task: str,
-    complexity: str,
-    uncertainty_score: float,
-) -> tuple[dict[str, int], list[str], str | None]:
-    scores = dict(candidate_scores)
-    safety_reasons: list[str] = []
-    forced_model_id: str | None = None
+def resolve_model(
+    prefilter: PrefilterState,
+    qwen_output: dict[str, object] | None,
+    signals: SignalProfile,
+    refinement: str,
+) -> ResolvedRoute:
+    normalized_refinement = refinement if refinement in {"brief", "bullet", "detailed"} else "brief"
+    overrides: list[str] = []
+    decision_steps = [f"prefilter={prefilter.label}"]
+    hard_override_model, hard_override_reason = direct_prefilter_override(prefilter)
+    if hard_override_model:
+        decision_steps.extend(
+            [
+                "qwen_used=false",
+                f"task={normalize_task(prefilter.task)}",
+                f"complexity={normalize_complexity(prefilter.complexity)}",
+                f"final_model={hard_override_model}",
+            ]
+        )
+        return ResolvedRoute(
+            model_id=hard_override_model,
+            task=normalize_task(prefilter.task),
+            complexity=normalize_complexity(prefilter.complexity),
+            task_source="prefilter_hard_override",
+            complexity_source="prefilter_hard_override",
+            reason=f"Deterministic prefilter override selected the final model ({hard_override_reason}).",
+            recommended_tier=recommended_tier_for_model(hard_override_model),
+            decision_steps=decision_steps,
+            overrides=overrides,
+            qwen_confidence=None,
+            analysis_backend="deterministic_prefilter_override",
+        )
 
-    if complexity == "high":
-        scores[NOVA_MICRO_MODEL_ID] = -999
-        scores[MISTRAL_MODEL_ID] = -999
-        safety_reasons.append("High complexity blocked the cheap models.")
+    heuristic_task, heuristic_complexity, heuristic_reason = heuristic_analyse(signals)
+    if prefilter.task and prefilter.complexity and prefilter.label != "ambiguous":
+        task = normalize_task(prefilter.task)
+        complexity = normalize_complexity(prefilter.complexity)
+        task_source = "prefilter"
+        complexity_source = "prefilter"
+        reason = prefilter.reason
+        analysis_backend = "deterministic_prefilter_policy"
+        decision_steps.append("classification=prefilter")
+    else:
+        task = normalize_task(heuristic_task)
+        complexity = normalize_complexity(heuristic_complexity)
+        task_source = "heuristic_analysis"
+        complexity_source = "heuristic_analysis"
+        reason = heuristic_reason
+        analysis_backend = "deterministic_heuristic_policy"
+        decision_steps.append("classification=heuristic")
 
-    if task == "code":
-        scores[NOVA_MICRO_MODEL_ID] = -999
-        scores[NOVA_PRO_MODEL_ID] += 2
-        safety_reasons.append("Code tasks never use Nova Micro.")
+    qwen_used = qwen_output is not None
+    decision_steps.append(f"qwen_used={str(qwen_used).lower()}")
+    confidence = qwen_confidence_value(qwen_output)
+    if qwen_used:
+        decision_steps.append(f"confidence={(confidence or 0.0):.2f}")
+        if (confidence or 0.0) < 0.6:
+            overrides.append("low_qwen_confidence_fallback")
+            decision_steps.append(f"final_model={CLAUDE_HAIKU_MODEL_ID}")
+            return ResolvedRoute(
+                model_id=CLAUDE_HAIKU_MODEL_ID,
+                task=task,
+                complexity=max_complexity(complexity, "medium"),
+                task_source=task_source,
+                complexity_source=complexity_source,
+                reason="Low Qwen confidence triggered the deterministic Claude Haiku fallback.",
+                recommended_tier=recommended_tier_for_model(CLAUDE_HAIKU_MODEL_ID),
+                decision_steps=decision_steps,
+                overrides=overrides,
+                qwen_confidence=confidence,
+                analysis_backend="deterministic_qwen_fallback",
+            )
 
-    if uncertainty_score >= HAIKU_FALLBACK_THRESHOLD:
-        forced_model_id = CLAUDE_HAIKU_MODEL_ID
-        safety_reasons.append("High uncertainty triggered the Claude Haiku fallback.")
+        task = normalize_task(str(qwen_output.get("task") or task))
+        complexity = normalize_complexity(str(qwen_output.get("complexity") or complexity))
+        task_source = "qwen"
+        complexity_source = "qwen"
+        analysis_backend = "deterministic_qwen_policy"
+        reason = "High-confidence Qwen classification supplied the routing task and complexity."
 
-    return scores, safety_reasons, forced_model_id
+    if prefilter.task in {"code", "math"} and task != prefilter.task:
+        task = prefilter.task
+        task_source = "prefilter_signal_override"
+        complexity = max_complexity(complexity, normalize_complexity(prefilter.complexity))
+        complexity_source = "prefilter_signal_override"
+        overrides.append(f"prefilter_override_{prefilter.task}")
+    elif signals.has_code_terms and task != "code":
+        task = "code"
+        task_source = "signal_override"
+        complexity = max_complexity(complexity, "medium")
+        complexity_source = "signal_override"
+        overrides.append("signal_override_code")
+    elif (signals.has_math_terms or signals.has_advanced_math_notation) and task != "math":
+        task = "math"
+        task_source = "signal_override"
+        complexity = max_complexity(complexity, "medium")
+        complexity_source = "signal_override"
+        overrides.append("signal_override_math")
 
+    if prefilter.label == "ambiguous" and not qwen_used and looks_like_context_missing(signals):
+        overrides.append("ambiguous_context_fallback")
+        decision_steps.extend(
+            [
+                f"task={task}",
+                f"complexity={max_complexity(complexity, 'medium')}",
+                f"final_model={CLAUDE_HAIKU_MODEL_ID}",
+            ]
+        )
+        return ResolvedRoute(
+            model_id=CLAUDE_HAIKU_MODEL_ID,
+            task=task,
+            complexity=max_complexity(complexity, "medium"),
+            task_source=task_source,
+            complexity_source=complexity_source,
+            reason="Ambiguous follow-up style prompt fell back to Claude Haiku for a safer recovery path.",
+            recommended_tier=recommended_tier_for_model(CLAUDE_HAIKU_MODEL_ID),
+            decision_steps=decision_steps,
+            overrides=overrides,
+            qwen_confidence=confidence,
+            analysis_backend="deterministic_ambiguous_fallback",
+        )
 
-def choose_model_id(candidate_scores: dict[str, int], forced_model_id: str | None = None) -> str:
-    if forced_model_id:
-        return forced_model_id
-    return max(candidate_scores.items(), key=lambda item: item[1])[0]
+    base_model_id = ROUTING_TABLE[task][complexity]
+    final_model_id, refinement_override = apply_refinement_bias(base_model_id, task, complexity, normalized_refinement)
+    if refinement_override:
+        overrides.append(refinement_override)
+
+    decision_steps.extend(
+        [
+            f"task={task}",
+            f"complexity={complexity}",
+            f"final_model={final_model_id}",
+        ]
+    )
+    return ResolvedRoute(
+        model_id=final_model_id,
+        task=task,
+        complexity=complexity,
+        task_source=task_source,
+        complexity_source=complexity_source,
+        reason=reason,
+        recommended_tier=recommended_tier_for_model(final_model_id),
+        decision_steps=decision_steps,
+        overrides=overrides,
+        qwen_confidence=confidence,
+        analysis_backend=analysis_backend,
+    )
 
 
 def build_decision(prompt: str, refinement: str = "brief", classifier=None) -> DecisionState:
@@ -516,89 +714,49 @@ def build_decision(prompt: str, refinement: str = "brief", classifier=None) -> D
     signals = extract_signals(prompt)
     prefilter = classify_prefilter(signals)
     uncertainty_state = evaluate_uncertainty(signals, prefilter)
-
-    route_steps: list[str] = ["signal_extraction", prefilter.label]
-    task_source = "prefilter"
-    complexity_source = "prefilter"
-    analysis_backend = "prefilter_only"
-
-    if prefilter.task and prefilter.complexity and prefilter.label != "ambiguous" and uncertainty_state.score <= QWEN_UNCERTAINTY_THRESHOLD:
-        task = prefilter.task
-        complexity = prefilter.complexity
-        reason = prefilter.reason
-        route_steps.append("direct_prefilter")
-    else:
-        task, complexity, heuristic_reason = heuristic_analyse(signals)
-        task_source = "heuristic_analysis"
-        complexity_source = "heuristic_analysis"
-        analysis_backend = "heuristic_analysis"
-        reason = heuristic_reason
-        route_steps.append("heuristic_analysis")
-        if uncertainty_state.reasons:
-            reason = f"{heuristic_reason} Uncertainty triggers: {'; '.join(uncertainty_state.reasons)}"
-
     qwen_result: dict[str, object] = {}
     used_qwen = False
-    effective_uncertainty = uncertainty_state.score
-    effective_uncertainty_label = uncertainty_state.label
 
     if should_use_qwen(prefilter, uncertainty_state, signals) and classifier:
         used_qwen = True
-        analysis_backend = "heuristic_plus_qwen"
-        route_steps.append("qwen_classifier")
         qwen_result = classifier(prompt)
-        if qwen_result.get("confidence") == "high":
-            task = str(qwen_result.get("task") or task)
-            complexity = str(qwen_result.get("complexity") or complexity)
-            task_source = "qwen_override"
-            complexity_source = "qwen_override"
-            effective_uncertainty = min(effective_uncertainty, 0.45)
-            effective_uncertainty_label = "medium" if effective_uncertainty >= 0.35 else "low"
-            reason = (
-                f"{reason} Qwen returned a high-confidence override to {task}/{complexity}, "
-                "so the router accepted it and lowered effective uncertainty."
-            )
-        else:
-            reason = f"{reason} Qwen returned low confidence, so the router kept the heuristic classification."
 
-    recommended_tier = select_model_tier(task, complexity, effective_uncertainty, normalized_refinement)
-    candidate_scores = score_models(
-        signals,
-        task,
-        complexity,
-        effective_uncertainty,
-        normalized_refinement,
+    resolved = resolve_model(
+        prefilter=prefilter,
+        qwen_output=qwen_result if used_qwen else None,
+        signals=signals,
+        refinement=normalized_refinement,
     )
-    candidate_scores, safety_reasons, forced_model_id = apply_safety_rules(
-        candidate_scores,
-        task,
-        complexity,
-        effective_uncertainty,
+    route_steps = ["signal_extraction", *resolved.decision_steps]
+    candidate_scores = build_candidate_scores(
+        final_model_id=resolved.model_id,
+        task=resolved.task,
+        complexity=resolved.complexity,
     )
-    if safety_reasons:
-        route_steps.append("safety_rules")
-        reason = f"{reason} {' '.join(safety_reasons)}"
-
-    selected_model_id = choose_model_id(candidate_scores, forced_model_id)
+    reason = resolved.reason
+    if uncertainty_state.reasons:
+        reason = f"{reason} Uncertainty triggers: {'; '.join(uncertainty_state.reasons)}"
 
     decision = DecisionState(
-        task=task,
-        complexity=complexity,
-        uncertainty=effective_uncertainty,
-        uncertainty_label=effective_uncertainty_label,
+        task=resolved.task,
+        complexity=resolved.complexity,
+        uncertainty=uncertainty_state.score,
+        uncertainty_label=uncertainty_state.label,
         prefilter=prefilter.label,
         route_path=" -> ".join(route_steps),
         decision_path=" -> ".join(route_steps),
-        task_source=task_source,
-        complexity_source=complexity_source,
+        task_source=resolved.task_source,
+        complexity_source=resolved.complexity_source,
         reason=reason,
-        recommended_tier=recommended_tier,
-        selected_model_id=selected_model_id,
+        recommended_tier=resolved.recommended_tier,
+        selected_model_id=resolved.model_id,
         candidate_scores=candidate_scores,
-        analysis_backend=analysis_backend,
+        analysis_backend=resolved.analysis_backend,
         used_qwen=used_qwen,
         refinement=normalized_refinement,
+        qwen_confidence=resolved.qwen_confidence,
         qwen_result=qwen_result,
+        overrides=resolved.overrides,
         classifier_cost=float(qwen_result.get("estimated_cost", 0.0) or 0.0),
         classifier_latency_ms=int(qwen_result.get("latency_ms", 0) or 0),
         classifier_token_usage=qwen_result.get("token_usage", {}) or {},

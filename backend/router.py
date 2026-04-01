@@ -1,6 +1,6 @@
 import logging
 
-from backend.model import BedrockInvocationError, call_model, call_qwen
+from backend.model import CLAUDE_SONNET_MODEL_ID, BedrockInvocationError, call_model, call_qwen
 from backend.routing_pipeline import build_decision
 
 logger = logging.getLogger(__name__)
@@ -33,8 +33,10 @@ def _build_debug_payload(decision, response_debug: dict | None = None) -> dict:
         "analysis_backend": decision.analysis_backend,
         "used_qwen": decision.used_qwen,
         "refinement": decision.refinement,
+        "qwen_confidence": decision.qwen_confidence,
         "reason": decision.reason,
         "routing_reason": decision.reason,
+        "overrides": decision.overrides,
         "candidate_scores": decision.candidate_scores,
         "signal_snapshot": decision.signals,
         "uncertainty_reasons": decision.uncertainty_reasons,
@@ -46,6 +48,8 @@ def _build_debug_payload(decision, response_debug: dict | None = None) -> dict:
         "latency_ms": request_latency_ms,
         "model_estimated_cost": model_cost,
         "estimated_cost": request_cost,
+        "actual_cost": request_cost,
+        "baseline_model": CLAUDE_SONNET_MODEL_ID,
         "baseline_cost": baseline_cost,
         "savings_pct": savings_pct,
     }
