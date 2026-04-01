@@ -84,26 +84,26 @@
                     </div>
                     
                     <!-- Additional Cost Section -->
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px;">
-                        <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px;">
-                            <h4 style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">Model Used</h4>
-                            <div id="stat-model" style="font-size: 20px; font-weight: 500; color: #81c995;">-</div>
+                    <div class="analytics-stat-grid">
+                        <div class="analytics-stat-card">
+                            <h4 class="analytics-stat-title">Model Used</h4>
+                            <div id="stat-model" class="analytics-stat-value model" style="color: #81c995;">-</div>
                         </div>
-                        <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px;">
-                            <h4 style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">Latency</h4>
-                            <div id="stat-latency" style="font-size: 28px; font-weight: 500; color: var(--text-primary);">0ms</div>
+                        <div class="analytics-stat-card">
+                            <h4 class="analytics-stat-title">Latency</h4>
+                            <div id="stat-latency" class="analytics-stat-value">0ms</div>
                         </div>
-                        <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px;">
-                            <h4 style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">Actual Cost</h4>
-                            <div id="stat-cost" style="font-size: 28px; font-weight: 500; color: #fbbc04;">$0.000000</div>
+                        <div class="analytics-stat-card">
+                            <h4 class="analytics-stat-title">Actual Cost</h4>
+                            <div id="stat-cost" class="analytics-stat-value money" style="color: #fbbc04;">$0.000000</div>
                         </div>
-                        <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px;">
-                            <h4 style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">GLM 5 Baseline</h4>
-                            <div id="stat-baseline-cost" style="font-size: 24px; font-weight: 500; color: #a8c7fa;">$0.000000</div>
+                        <div class="analytics-stat-card">
+                            <h4 class="analytics-stat-title">GLM 5 Baseline</h4>
+                            <div id="stat-baseline-cost" class="analytics-stat-value money" style="color: #a8c7fa;">$0.000000</div>
                         </div>
-                        <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px;">
-                            <h4 style="font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">Savings vs GLM 5</h4>
-                            <div id="stat-savings" style="font-size: 24px; font-weight: 500; color: #81c995;">0.00%</div>
+                        <div class="analytics-stat-card">
+                            <h4 class="analytics-stat-title">GLM 5 Comparison</h4>
+                            <div id="stat-savings" class="analytics-stat-value" style="color: #81c995;">Matches GLM 5</div>
                         </div>
                     </div>
             </div>

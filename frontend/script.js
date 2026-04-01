@@ -103,7 +103,15 @@ const LEGACY_MODEL_NAME_TO_ID = {
     'Z.AI GLM 5': 'zai.glm-5',
 };
 
+const TEXT_ATTACHMENT_EXTENSIONS = new Set([
+    'txt', 'md', 'py', 'js', 'ts', 'tsx', 'jsx', 'json', 'html', 'css',
+    'csv', 'xml', 'yaml', 'yml', 'java', 'c', 'cpp', 'h', 'hpp', 'rs',
+    'go', 'sql', 'sh', 'log',
+]);
+const MAX_ATTACHMENT_CHARS = 12000;
+
 let analyticsChart = null;
+let pendingAttachments = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     migrateHistory();
@@ -171,30 +179,38 @@ function bindGlobalButtons() {
 
 function initRefinementMenu() {
     const optionButtons = document.querySelectorAll('[data-refinement]');
+    const menu = document.getElementById('options-menu');
+    const trigger = document.getElementById('options-popup-btn');
     if (!optionButtons.length) return;
 
     let settings = getSettings();
     highlightRefinement(settings.defaultRefinement);
+
+    if (trigger && menu) {
+        trigger.addEventListener('click', (event) => {
+            event.stopPropagation();
+            menu.classList.toggle('open');
+        });
+    }
 
     optionButtons.forEach((button) => {
         button.addEventListener('click', () => {
             settings = { ...settings, defaultRefinement: button.dataset.refinement || 'brief' };
             saveSettings(settings);
             highlightRefinement(settings.defaultRefinement);
+            if (menu) menu.classList.remove('open');
 
             const routeDesc = document.querySelector('.route-desc');
             if (routeDesc && !document.querySelector('.response-output')) {
-                routeDesc.textContent = `Ready to route • ${capitalize(settings.defaultRefinement)} output`;
+                routeDesc.textContent = `Ready • ${capitalize(settings.defaultRefinement)}`;
             }
         });
     });
 
     document.addEventListener('click', (event) => {
-        const menu = document.getElementById('options-menu');
-        const trigger = document.getElementById('options-popup-btn');
         if (!menu || !trigger) return;
         if (!menu.contains(event.target) && !trigger.contains(event.target)) {
-            menu.style.display = 'none';
+            menu.classList.remove('open');
         }
     });
 }
@@ -209,6 +225,9 @@ function highlightRefinement(selectedRefinement) {
 function initIndexPage() {
     const promptInput = document.getElementById('prompt-input');
     const goBtn = document.getElementById('go-btn');
+    const addBtn = document.getElementById('add-btn');
+    const fileInput = document.getElementById('file-input');
+    const attachmentList = document.getElementById('attachment-list');
     if (!promptInput || !goBtn) return;
 
     promptInput.addEventListener('input', autoResizePrompt);
@@ -218,6 +237,28 @@ function initIndexPage() {
             goBtn.click();
         }
     });
+
+    if (addBtn && fileInput && attachmentList) {
+        addBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', async (event) => {
+            const files = Array.from(event.target.files || []);
+            if (!files.length) return;
+            const attachments = await Promise.all(files.map(readAttachmentFile));
+            pendingAttachments = [
+                ...pendingAttachments,
+                ...attachments.filter(Boolean),
+            ];
+            renderAttachmentList(attachmentList);
+            fileInput.value = '';
+        });
+        attachmentList.addEventListener('click', (event) => {
+            const removeBtn = event.target.closest('[data-remove-attachment]');
+            if (!removeBtn) return;
+            pendingAttachments = pendingAttachments.filter((attachment) => attachment.id !== removeBtn.dataset.removeAttachment);
+            renderAttachmentList(attachmentList);
+        });
+        renderAttachmentList(attachmentList);
+    }
 
     const latestEntry = getHistory()[0];
     if (latestEntry) {
@@ -244,10 +285,11 @@ function initIndexPage() {
 
         let payload = null;
         try {
+            const promptToSend = buildPromptWithAttachments(prompt);
             const response = await fetch('/ask', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt, refinement }),
+                body: JSON.stringify({ prompt: promptToSend, refinement }),
             });
 
             payload = await response.json();
@@ -256,6 +298,7 @@ function initIndexPage() {
             renderIndexEntry(historyEntry);
             promptInput.value = '';
             promptInput.style.height = 'auto';
+            clearPendingAttachments(attachmentList, fileInput);
         } catch (error) {
             const historyEntry = saveErrorToHistory(error, prompt, refinement, payload);
             renderSidebarHistory();
@@ -265,6 +308,80 @@ function initIndexPage() {
             goBtn.style.pointerEvents = 'auto';
         }
     });
+}
+
+async function readAttachmentFile(file) {
+    const extension = getFileExtension(file.name);
+    if (!TEXT_ATTACHMENT_EXTENSIONS.has(extension)) {
+        return {
+            id: buildEntryId(),
+            name: file.name,
+            size: file.size,
+            language: 'text',
+            content: `[Unsupported file omitted: ${file.name}. Attach text or code files to send inline context.]`,
+            truncated: false,
+            unsupported: true,
+        };
+    }
+
+    try {
+        const rawText = await file.text();
+        const text = rawText.slice(0, MAX_ATTACHMENT_CHARS);
+        return {
+            id: buildEntryId(),
+            name: file.name,
+            size: file.size,
+            language: mapLanguageFromExtension(extension),
+            content: text,
+            truncated: rawText.length > MAX_ATTACHMENT_CHARS,
+            unsupported: false,
+        };
+    } catch (error) {
+        return {
+            id: buildEntryId(),
+            name: file.name,
+            size: file.size,
+            language: 'text',
+            content: `[Could not read ${file.name}.]`,
+            truncated: false,
+            unsupported: true,
+        };
+    }
+}
+
+function renderAttachmentList(container) {
+    if (!container) return;
+    if (!pendingAttachments.length) {
+        container.innerHTML = '';
+        return;
+    }
+
+    container.innerHTML = pendingAttachments.map((attachment) => `
+        <div class="attachment-chip">
+            <div class="attachment-chip-copy">
+                <span class="attachment-chip-name">${escapeHtml(attachment.name)}</span>
+                <span class="attachment-chip-meta">${attachment.unsupported ? 'metadata only' : attachment.truncated ? `${formatBytes(attachment.size)} • trimmed` : formatBytes(attachment.size)}</span>
+            </div>
+            <button class="attachment-remove-btn" type="button" title="Remove file" data-remove-attachment="${escapeHtml(attachment.id)}">×</button>
+        </div>
+    `).join('');
+}
+
+function clearPendingAttachments(container, input) {
+    pendingAttachments = [];
+    if (container) renderAttachmentList(container);
+    if (input) input.value = '';
+}
+
+function buildPromptWithAttachments(prompt) {
+    if (!pendingAttachments.length) return prompt;
+
+    const attachmentText = pendingAttachments.map((attachment) => {
+        const header = `Attached file: ${attachment.name}${attachment.truncated ? ' (trimmed)' : ''}`;
+        return `${header}\n\`\`\`${attachment.language}\n${attachment.content}\n\`\`\``;
+    }).join('\n\n');
+
+    return `${prompt}\n\nUse the attached file context if it is relevant.\n\n${attachmentText}`;
 }
 
 function autoResizePrompt(event) {
@@ -282,15 +399,15 @@ function renderIdleState() {
     const responseStatus = document.querySelector('.response-status');
 
     if (routeModel) routeModel.textContent = 'Dispatch Router';
-    if (routeDesc) routeDesc.textContent = `Ready to route • ${capitalize(getSettings().defaultRefinement)} output`;
+    if (routeDesc) routeDesc.textContent = `Ready • ${capitalize(getSettings().defaultRefinement)}`;
     if (speedValue) speedValue.textContent = '0ms';
     if (speedFill) speedFill.style.width = '0%';
     if (responseStatus) responseStatus.innerHTML = successBadge('Ready');
     if (responseBody) {
         responseBody.innerHTML = `
             <div class="response-empty">
-                <p class="response-empty-title">Backend connected and waiting.</p>
-                <p class="response-empty-copy">Submit a prompt to see the live Bedrock route, model choice, Qwen decision, latency, cost, and debug path.</p>
+                <p class="response-empty-title">Ready when you are.</p>
+                <p class="response-empty-copy">Enter a prompt to get a routed answer.</p>
             </div>
         `;
     }
@@ -307,7 +424,7 @@ async function checkBackendHealth() {
             responseStatus.innerHTML = successBadge('Backend Online');
         }
         if (routeDesc && !hasRenderedResult) {
-            routeDesc.textContent = `Backend online • ${capitalize(getSettings().defaultRefinement)} output`;
+            routeDesc.textContent = `Online • ${capitalize(getSettings().defaultRefinement)}`;
         }
     } catch (error) {
         if (responseStatus && !hasRenderedResult) {
@@ -332,8 +449,8 @@ function setLoadingState(prompt, refinement) {
     goBtn.style.pointerEvents = 'none';
 
     if (responseStatus) responseStatus.innerHTML = workingBadge('Routing');
-    if (routeModel) routeModel.textContent = 'Selecting best model...';
-    if (routeDesc) routeDesc.textContent = `Analyzing prompt, uncertainty, and Qwen gate • ${capitalize(refinement)}`;
+    if (routeModel) routeModel.textContent = 'Routing...';
+    if (routeDesc) routeDesc.textContent = `Finding route • ${capitalize(refinement)}`;
     if (speedValue) speedValue.textContent = '--';
     if (speedFill) speedFill.style.width = '18%';
     if (responseBody) {
@@ -374,50 +491,57 @@ function renderIndexEntry(entry) {
 
     responseStatus.innerHTML = entry.ok ? successBadge(entry.fallbackUsed ? 'Fallback Success' : 'Success') : errorBadge('Failed');
     responseBody.innerHTML = `
-        <pre class="response-output">${escapeHtml(entry.response || 'No response returned.')}</pre>
-        <div class="response-meta-grid">
-            <div class="response-meta-item">
-                <span class="meta-key">Prompt</span>
-                <span class="meta-value">${escapeHtml(truncate(entry.prompt, 140))}</span>
+        <div class="response-output markdown-response">${renderMarkdown(entry.response || 'No response returned.')}</div>
+        <details class="response-details">
+            <summary>
+                <span>Routing details</span>
+                <span class="response-details-hint">Cost, tokens, Qwen, request id, and routing path</span>
+            </summary>
+            <div class="response-meta-grid">
+                <div class="response-meta-item">
+                    <span class="meta-key">Prompt</span>
+                    <span class="meta-value">${escapeHtml(truncate(entry.prompt, 140))}</span>
+                </div>
+                <div class="response-meta-item">
+                    <span class="meta-key">Task</span>
+                    <span class="meta-value">${capitalize(entry.task)} / ${capitalize(entry.complexity)}</span>
+                </div>
+                <div class="response-meta-item">
+                    <span class="meta-key">Qwen</span>
+                    <span class="meta-value">${entry.usedQwen ? `Used${entry.qwenConfidence !== null ? ` (${Number(entry.qwenConfidence).toFixed(2)})` : ''}` : 'Skipped'}</span>
+                </div>
+                <div class="response-meta-item">
+                    <span class="meta-key">Actual Cost</span>
+                    <span class="meta-value">${formatCurrency(entry.cost)}</span>
+                </div>
+                <div class="response-meta-item">
+                    <span class="meta-key">GLM 5 Baseline</span>
+                    <span class="meta-value">${formatCurrency(entry.baselineCost)}</span>
+                </div>
+                <div class="response-meta-item">
+                    <span class="meta-key">GLM 5 Comparison</span>
+                    <span class="meta-value ${entry.savingsPct < 0 ? 'negative-money' : 'positive-money'}">${formatSavingsText(entry.savingsPct)}</span>
+                </div>
+                <div class="response-meta-item">
+                    <span class="meta-key">Tokens</span>
+                    <span class="meta-value">${formatNumber(entry.totalTokens)}${buildTokenSuffix(entry)}</span>
+                </div>
+                <div class="response-meta-item">
+                    <span class="meta-key">Request ID</span>
+                    <span class="meta-value mono-text">${escapeHtml(entry.requestId || 'n/a')}</span>
+                </div>
+                <div class="response-meta-item full-width">
+                    <span class="meta-key">Reason</span>
+                    <span class="meta-value">${escapeHtml(entry.reason || 'No routing reason recorded.')}</span>
+                </div>
+                <div class="response-meta-item full-width">
+                    <span class="meta-key">Route Path</span>
+                    <span class="meta-value mono-text">${escapeHtml(entry.routePath || 'No route path recorded.')}</span>
+                </div>
             </div>
-            <div class="response-meta-item">
-                <span class="meta-key">Task</span>
-                <span class="meta-value">${capitalize(entry.task)} / ${capitalize(entry.complexity)}</span>
-            </div>
-            <div class="response-meta-item">
-                <span class="meta-key">Qwen</span>
-                <span class="meta-value">${entry.usedQwen ? `Used${entry.qwenConfidence !== null ? ` (${Number(entry.qwenConfidence).toFixed(2)})` : ''}` : 'Skipped'}</span>
-            </div>
-            <div class="response-meta-item">
-                <span class="meta-key">Actual Cost</span>
-                <span class="meta-value">${formatCurrency(entry.cost)}</span>
-            </div>
-            <div class="response-meta-item">
-                <span class="meta-key">GLM 5 Baseline</span>
-                <span class="meta-value">${formatCurrency(entry.baselineCost)}</span>
-            </div>
-            <div class="response-meta-item">
-                <span class="meta-key">Savings vs GLM 5</span>
-                <span class="meta-value ${entry.savingsPct < 0 ? 'negative-money' : 'positive-money'}">${formatPercent(entry.savingsPct)}</span>
-            </div>
-            <div class="response-meta-item">
-                <span class="meta-key">Tokens</span>
-                <span class="meta-value">${formatNumber(entry.totalTokens)}${buildTokenSuffix(entry)}</span>
-            </div>
-            <div class="response-meta-item">
-                <span class="meta-key">Request ID</span>
-                <span class="meta-value mono-text">${escapeHtml(entry.requestId || 'n/a')}</span>
-            </div>
-            <div class="response-meta-item full-width">
-                <span class="meta-key">Reason</span>
-                <span class="meta-value">${escapeHtml(entry.reason || 'No routing reason recorded.')}</span>
-            </div>
-            <div class="response-meta-item full-width">
-                <span class="meta-key">Route Path</span>
-                <span class="meta-value mono-text">${escapeHtml(entry.routePath || 'No route path recorded.')}</span>
-            </div>
-        </div>
+        </details>
     `;
+    typesetMath(responseBody);
 }
 
 function buildTokenSuffix(entry) {
@@ -427,17 +551,12 @@ function buildTokenSuffix(entry) {
 }
 
 function buildRouteSummary(entry) {
-    const parts = [
-        capitalize(entry.task),
-        capitalize(entry.complexity),
-        entry.usedQwen ? 'Qwen assisted' : 'Deterministic route',
-    ];
+    const parts = [capitalize(entry.task), capitalize(entry.complexity)];
+
+    parts.push(entry.usedQwen ? 'Qwen' : 'Direct');
 
     if (entry.fallbackUsed) {
-        parts.push('Nova Pro failover');
-    }
-    if (entry.overrides.length) {
-        parts.push(entry.overrides[0].replaceAll('_', ' '));
+        parts.push('Fallback');
     }
 
     return parts.join(' • ');
@@ -537,7 +656,7 @@ function renderHistoryPage() {
             const chips = [
                 `${Math.round(entry.latencyMs || 0)}ms`,
                 formatCurrency(entry.cost),
-                formatPercent(entry.savingsPct),
+                formatSavingsChip(entry.savingsPct),
                 entry.usedQwen ? 'Qwen' : 'Direct',
             ];
 
@@ -605,7 +724,7 @@ function renderAnalyticsPage() {
         statLatency.textContent = '0ms';
         statCost.textContent = '$0.000000';
         statBaselineCost.textContent = '$0.000000';
-        statSavings.textContent = '0.00%';
+        statSavings.textContent = 'Matches GLM 5';
         if (analyticsChart) analyticsChart.destroy();
         return;
     }
@@ -618,7 +737,7 @@ function renderAnalyticsPage() {
     statLatency.textContent = `${Math.round(selected.latencyMs || 0)}ms`;
     statCost.textContent = formatCurrency(selected.cost);
     statBaselineCost.textContent = formatCurrency(selected.baselineCost);
-    statSavings.textContent = formatPercent(selected.savingsPct);
+    statSavings.textContent = formatSavingsText(selected.savingsPct);
     statSavings.style.color = selected.savingsPct < 0 ? '#f28b82' : '#81c995';
     chartPlaceholder.style.display = 'none';
     chartCanvas.style.display = 'block';
@@ -668,7 +787,7 @@ function renderAnalyticsPage() {
                                 `Model: ${entry.modelName}`,
                                 `Cost: ${formatCurrency(entry.cost)}`,
                                 `Baseline: ${formatCurrency(entry.baselineCost)}`,
-                                `Savings: ${formatPercent(entry.savingsPct)}`,
+                                `GLM 5 comparison: ${formatSavingsText(entry.savingsPct)}`,
                                 `Qwen: ${entry.usedQwen ? 'Yes' : 'No'}`,
                             ];
                         },
@@ -1049,6 +1168,36 @@ function formatNumber(value) {
     return new Intl.NumberFormat().format(Number(value || 0));
 }
 
+function formatBytes(value) {
+    const bytes = Number(value || 0);
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getFileExtension(filename) {
+    const parts = String(filename || '').toLowerCase().split('.');
+    return parts.length > 1 ? parts.pop() : '';
+}
+
+function mapLanguageFromExtension(extension) {
+    const languageMap = {
+        py: 'python',
+        js: 'javascript',
+        jsx: 'jsx',
+        ts: 'typescript',
+        tsx: 'tsx',
+        md: 'markdown',
+        yml: 'yaml',
+        h: 'c',
+        hpp: 'cpp',
+        rs: 'rust',
+        sh: 'bash',
+        txt: 'text',
+    };
+    return languageMap[extension] || extension || 'text';
+}
+
 function formatCurrency(value) {
     const amount = Number(value || 0);
     if (amount === 0) return '$0.000000';
@@ -1060,6 +1209,100 @@ function formatCurrency(value) {
 
 function formatPercent(value) {
     return `${Number(value || 0).toFixed(2)}%`;
+}
+
+function formatSavingsText(value) {
+    const savings = Number(value || 0);
+    if (Math.abs(savings) < 0.005) {
+        return 'Matches GLM 5';
+    }
+    if (savings >= 0) {
+        return `Saved ${formatPercent(savings)} vs GLM 5`;
+    }
+    return `${formatPercent(Math.abs(savings))} over GLM 5`;
+}
+
+function formatSavingsChip(value) {
+    const savings = Number(value || 0);
+    if (Math.abs(savings) < 0.005) {
+        return 'Near GLM 5';
+    }
+    if (savings >= 0) {
+        return `Save ${formatPercent(savings)}`;
+    }
+    return `${formatPercent(Math.abs(savings))} over`;
+}
+
+function renderMarkdown(markdown) {
+    const source = String(markdown ?? '').replace(/\r\n?/g, '\n').trim();
+    if (!source) {
+        return '<p>No response returned.</p>';
+    }
+
+    const codeBlocks = [];
+    const withPlaceholders = source.replace(/```([\w-]+)?\n?([\s\S]*?)```/g, (_match, language = '', code = '') => {
+        const token = `@@CODEBLOCK${codeBlocks.length}@@`;
+        const label = language ? escapeHtml(language) : 'text';
+        const escapedCode = escapeHtml(code.replace(/\n$/, ''));
+        codeBlocks.push(`
+            <pre class="response-code-block"><div class="response-code-label">${label}</div><code>${escapedCode}</code></pre>
+        `);
+        return `\n${token}\n`;
+    });
+
+    const rendered = withPlaceholders
+        .split(/\n{2,}/)
+        .map((block) => renderMarkdownBlock(block))
+        .filter(Boolean)
+        .join('');
+
+    return rendered.replace(/@@CODEBLOCK(\d+)@@/g, (_match, index) => codeBlocks[Number(index)] || '');
+}
+
+function renderMarkdownBlock(block) {
+    const trimmed = String(block ?? '').trim();
+    if (!trimmed) return '';
+
+    if (/^@@CODEBLOCK\d+@@$/.test(trimmed)) {
+        return trimmed;
+    }
+
+    const lines = trimmed.split('\n');
+
+    if (lines.every((line) => /^[-*]\s+/.test(line))) {
+        const items = lines.map((line) => line.replace(/^[-*]\s+/, ''));
+        return `<ul>${items.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join('')}</ul>`;
+    }
+
+    if (lines.every((line) => /^\d+\.\s+/.test(line))) {
+        const items = lines.map((line) => line.replace(/^\d+\.\s+/, ''));
+        return `<ol>${items.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join('')}</ol>`;
+    }
+
+    if (lines.every((line) => /^>\s?/.test(line))) {
+        return `<blockquote>${lines.map((line) => renderInlineMarkdown(line.replace(/^>\s?/, ''))).join('<br>')}</blockquote>`;
+    }
+
+    const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+        const level = Math.min(6, heading[1].length);
+        return `<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`;
+    }
+
+    return `<p>${lines.map((line) => renderInlineMarkdown(line)).join('<br>')}</p>`;
+}
+
+function renderInlineMarkdown(text) {
+    let rendered = escapeHtml(text ?? '');
+    rendered = rendered.replace(/`([^`]+)`/g, '<code class="response-inline-code">$1</code>');
+    rendered = rendered.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    return rendered;
+}
+
+function typesetMath(container) {
+    if (!container || !window.MathJax?.typesetPromise) return;
+    window.MathJax.typesetClear?.([container]);
+    window.MathJax.typesetPromise([container]).catch(() => {});
 }
 
 function formatDate(value) {

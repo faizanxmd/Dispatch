@@ -76,11 +76,11 @@
                 <textarea class="prompt-input" id="prompt-input" placeholder="Enter your prompt here..." rows="2"></textarea>
                 <div class="prompt-actions">
                     <div class="prompt-left-actions">
-                        <button class="add-btn" id="add-btn" title="Add">
+                        <button class="add-btn" id="add-btn" title="Attach files" type="button">
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                         </button>
-                        <div class="popup-container" style="position: relative;">
-                            <button class="action-icon-btn" id="options-popup-btn" title="Format Options" onclick="const menu = document.getElementById('options-menu'); menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';">
+                        <div class="popup-container">
+                            <button class="action-icon-btn" id="options-popup-btn" title="Format Options" type="button">
                                 <!-- Spiral Logo (Aperture / Abstract) -->
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#e3e3e3" stroke-width="1.2">
                                     <circle cx="12" cy="12" r="10" />
@@ -90,10 +90,10 @@
                                     <path d="M5 19C10 16 14 12 5 5" />
                                 </svg>
                             </button>
-                            <div class="options-menu" id="options-menu" style="display: none; position: absolute; bottom: 120%; left: 0; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 12px; padding: 8px; flex-direction: column; gap: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10; min-width: 120px;">
-                                <button class="action-text-btn" data-refinement="bullet" style="width: 100%; text-align: left;">Bullets</button>
-                                <button class="action-text-btn" data-refinement="brief" style="width: 100%; text-align: left;">Brief</button>
-                                <button class="action-text-btn" data-refinement="detailed" style="width: 100%; text-align: left;">Detailed</button>
+                            <div class="options-menu" id="options-menu">
+                                <button class="action-text-btn" data-refinement="bullet" type="button">Bullets</button>
+                                <button class="action-text-btn" data-refinement="brief" type="button">Brief</button>
+                                <button class="action-text-btn" data-refinement="detailed" type="button">Detailed</button>
                             </div>
                         </div>
                     </div>
@@ -103,6 +103,8 @@
                         </button>
                     </div>
                 </div>
+                <input type="file" id="file-input" class="hidden-file-input" multiple accept=".txt,.md,.py,.js,.ts,.tsx,.jsx,.json,.html,.css,.csv,.xml,.yaml,.yml,.java,.c,.cpp,.h,.hpp,.rs,.go,.sql,.sh,.log">
+                <div class="attachment-list" id="attachment-list"></div>
             </div>
 
             <!-- Response Area (from Dispatch AI image 2) -->
@@ -112,7 +114,7 @@
                         <span class="response-label">MODEL RESPONSE</span>
                         <span class="response-status">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="#34a853"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-                            Success
+                            Ready
                         </span>
                     </div>
                     <div class="response-body">
@@ -123,12 +125,12 @@
                     </div>
                 </div>
                 <div class="route-path-card" id="route-path-card">
-                    <span class="route-label">ROUTE PATH</span>
-                    <h2 class="route-model">GPT-4o</h2>
-                    <p class="route-desc">High-reasoning cluster</p>
+                    <span class="route-label">ROUTING</span>
+                    <h2 class="route-model">Dispatch Router</h2>
+                    <p class="route-desc">Ready • Brief</p>
                     <div class="route-speed">
-                        <span class="speed-label">Latent Speed</span>
-                        <span class="speed-value">42ms</span>
+                        <span class="speed-label">Latency</span>
+                        <span class="speed-value">0ms</span>
                     </div>
                     <div class="speed-bar">
                         <div class="speed-bar-fill"></div>
@@ -140,6 +142,19 @@
         </main>
     </div>
 
+    <script>
+    window.MathJax = {
+        tex: {
+            inlineMath: [['$', '$'], ['\\(', '\\)']],
+            displayMath: [['$$', '$$'], ['\\[', '\\]']],
+            processEscapes: true
+        },
+        options: {
+            skipHtmlTags: { '[+]': ['pre', 'code'] }
+        }
+    };
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
     <script src="script.js"></script>
     <script>
     (function() {
