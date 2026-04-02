@@ -51,15 +51,13 @@ http://127.0.0.1:8000/app/
 
 ## Deploy
 
-Recommended: Render.
+The repo is set up for both Render and Vercel.
 
-Why:
+### Vercel
 
-- one FastAPI service can host both the API and frontend
-- GitHub auto-deploys are simple
-- no separate static hosting setup is needed
-
-This repo includes [render.yaml](render.yaml) for a basic web-service deploy.
+- [vercel.json](vercel.json) routes requests into the FastAPI app
+- [api/index.py](api/index.py) is the Vercel Python entrypoint
+- [requirements.txt](requirements.txt) exposes the Python dependencies at the project root
 
 Required environment variables:
 
@@ -70,6 +68,10 @@ Required environment variables:
 
 Official docs:
 
-- [Render FastAPI deploy guide](https://render.com/docs/deploy-fastapi)
-- [Render web services](https://render.com/docs/web-services)
-- [Railway FastAPI guide](https://docs.railway.com/guides/fastapi)
+- [Vercel FastAPI guide](https://vercel.com/docs/frameworks/backend/fastapi)
+- [Vercel Python runtime](https://vercel.com/docs/functions/runtimes/python)
+- [Vercel project configuration](https://vercel.com/docs/project-configuration/vercel-json)
+
+### Render
+
+The repo also includes [render.yaml](render.yaml) for a simple Render web service deploy.
