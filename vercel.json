@@ -1,21 +1,22 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "functions": {
-    "api/index.py": {
-      "maxDuration": 30
-    }
-  },
-  "redirects": [
+  "builds": [
     {
-      "source": "/",
-      "destination": "/app/",
-      "permanent": false
+      "src": "api/index.py",
+      "use": "@vercel/python"
     }
   ],
-  "rewrites": [
+  "routes": [
     {
-      "source": "/(.*)",
-      "destination": "/api/index"
+      "src": "/",
+      "status": 307,
+      "headers": {
+        "Location": "/app/"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "dest": "api/index.py"
     }
   ]
 }
