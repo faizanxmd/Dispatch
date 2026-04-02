@@ -85,6 +85,8 @@ def _build_debug_payload(decision, response_debug: dict | None = None) -> dict:
     response_debug = response_debug or {}
     model_cost = float(response_debug.get("estimated_cost", 0.0) or 0.0)
     model_latency_ms = int(response_debug.get("latency_ms", 0) or 0)
+    selected_model_id = decision.selected_model_id
+    served_model_id = response_debug.get("invoked_model_id") or response_debug.get("model_id") or selected_model_id
     request_cost = model_cost + decision.classifier_cost
     request_latency_ms = model_latency_ms + decision.classifier_latency_ms
     prompt_tokens = response_debug.get("prompt_token_count")
@@ -156,6 +158,10 @@ def _build_debug_payload(decision, response_debug: dict | None = None) -> dict:
         "model_estimated_cost": model_cost,
         "estimated_cost": request_cost,
         "actual_cost": request_cost,
+        "selected_model_id": selected_model_id,
+        "selected_model_display_name": get_model_display_name(selected_model_id),
+        "served_model_id": served_model_id,
+        "served_model_display_name": get_model_display_name(served_model_id),
         "model_saved_amount": model_saved_amount,
         "net_saved_amount": request_saved_amount,
         "model_savings_pct": model_savings_pct,

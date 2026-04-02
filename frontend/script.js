@@ -547,6 +547,16 @@ function renderIndexEntry(entry) {
                     <span class="meta-value ${entry.premiumSavingsPct < 0 ? 'negative-money' : 'positive-money'}">${formatSavingsText(entry.premiumSavingsPct, entry.premiumBaselineModelName)}</span>
                 </div>
     `;
+    const routingExecutionCards = entry.fallbackUsed && entry.selectedModelId && entry.selectedModelId !== entry.modelId ? `
+                <div class="response-meta-item">
+                    <span class="meta-key">Selected by Router</span>
+                    <span class="meta-value">${escapeHtml(entry.selectedModelName)}</span>
+                </div>
+                <div class="response-meta-item">
+                    <span class="meta-key">Served by</span>
+                    <span class="meta-value">${escapeHtml(entry.modelName)} (fallback)</span>
+                </div>
+    ` : '';
     responseBody.innerHTML = `
         <div class="response-output markdown-response">${renderMarkdown(entry.response || 'No response returned.')}</div>
         <details class="response-details">
@@ -571,6 +581,7 @@ function renderIndexEntry(entry) {
                     <span class="meta-key">Actual Cost</span>
                     <span class="meta-value">${formatCurrency(entry.cost)}</span>
                 </div>
+                ${routingExecutionCards}
                 <div class="response-meta-item">
                     <span class="meta-key">${escapeHtml(baselineLabel)}</span>
                     <span class="meta-value">${formatCurrency(entry.baselineCost)}</span>
@@ -1077,6 +1088,8 @@ function saveResultToHistory(result, prompt, refinement) {
         ok: Boolean(result?.ok),
         createdAt: new Date().toISOString(),
         modelId: result?.model_used || debug.invoked_model_id || debug.model_id,
+        selectedModelId: debug.selected_model_id || debug.fallback_from_model || debug.model_id,
+        servedModelId: debug.served_model_id || result?.model_used || debug.invoked_model_id || debug.model_id,
         latencyMs: Number(debug.latency_ms || debug.model_latency_ms || 0),
         cost: Number(debug.actual_cost ?? debug.estimated_cost ?? 0),
         modelCost: Number(debug.model_estimated_cost ?? 0),
@@ -1126,6 +1139,8 @@ function saveErrorToHistory(error, prompt, refinement, payload) {
         ok: false,
         createdAt: new Date().toISOString(),
         modelId: payload?.model_used || debug.invoked_model_id || 'router-error',
+        selectedModelId: debug.selected_model_id || debug.fallback_from_model || debug.model_id || payload?.model_used || 'router-error',
+        servedModelId: debug.served_model_id || payload?.model_used || debug.invoked_model_id || 'router-error',
         latencyMs: Number(debug.latency_ms || 0),
         cost: Number(debug.actual_cost ?? debug.estimated_cost ?? 0),
         modelCost: Number(debug.model_estimated_cost ?? 0),
@@ -1170,6 +1185,8 @@ function normalizeHistoryEntry(raw) {
     const prompt = raw.prompt || raw.text || '';
     const legacyModel = raw.modelName || raw.model || '';
     const mappedModelId = raw.modelId || LEGACY_MODEL_NAME_TO_ID[legacyModel] || legacyModel || 'unknown-model';
+    const selectedModelId = raw.selectedModelId || raw.selected_model_id || raw.fallback_from_model || mappedModelId;
+    const servedModelId = raw.servedModelId || raw.served_model_id || mappedModelId;
     const promptTokens = Number(raw.promptTokens ?? raw.prompt_token_count ?? 0);
     const outputTokens = Number(raw.outputTokens ?? raw.generation_token_count ?? 0);
     const totalTokens = Number(raw.totalTokens ?? raw.tokens ?? raw.total_token_count ?? (promptTokens + outputTokens));
@@ -1225,8 +1242,12 @@ function normalizeHistoryEntry(raw) {
         response: raw.response || raw.output || raw.error || '',
         ok: raw.ok !== false,
         createdAt: raw.createdAt || raw.timestamp || new Date().toISOString(),
-        modelId: mappedModelId,
-        modelName: raw.modelName || formatModelName(mappedModelId),
+        modelId: servedModelId,
+        modelName: raw.modelName || formatModelName(servedModelId),
+        selectedModelId,
+        selectedModelName: raw.selectedModelName || raw.selected_model_display_name || formatModelName(selectedModelId),
+        servedModelId,
+        servedModelName: raw.servedModelName || raw.served_model_display_name || formatModelName(servedModelId),
         latencyMs: Number(raw.latencyMs ?? raw.latency ?? raw.latency_ms ?? 0),
         cost: actualCost,
         modelCost,
