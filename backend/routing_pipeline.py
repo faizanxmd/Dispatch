@@ -120,6 +120,46 @@ FOLLOW_UP_TERMS = {
     "working",
     "happening",
 }
+AMBIGUOUS_DEBUG_TERMS = {
+    "works locally",
+    "breaks in production",
+    "production",
+    "deploy",
+    "deployment",
+    "deployed",
+    "upload",
+    "uploads",
+    "failing",
+    "fails",
+    "failure",
+    "issue",
+    "problem",
+    "backend",
+    "frontend",
+    "users",
+    "some users",
+    "sometimes",
+    "where to start",
+    "what should i check",
+    "not sure",
+}
+OPERATIONAL_CONTEXT_TERMS = {
+    "app",
+    "backend",
+    "frontend",
+    "server",
+    "production",
+    "deploy",
+    "deployment",
+    "deployed",
+    "upload",
+    "uploads",
+    "users",
+    "feature",
+    "request",
+    "requests",
+    "api",
+}
 QWEN_UNCERTAINTY_THRESHOLD = 0.5
 HAIKU_FALLBACK_THRESHOLD = 0.65
 SIMPLE_MATH_RE = re.compile(r"^\s*[\d\s\+\-\*\/\(\)]+\s*$")
@@ -281,6 +321,17 @@ def looks_like_context_missing(signals: SignalProfile) -> bool:
     return (has_reference and has_follow_up) or short_follow_up or prompt in {"??", "and?", "this?", "hmm"}
 
 
+def looks_like_ambiguous_debug_prompt(signals: SignalProfile) -> bool:
+    prompt = signals.normalized
+    has_debug_terms = contains_any(prompt, AMBIGUOUS_DEBUG_TERMS)
+    has_operational_context = contains_any(prompt, OPERATIONAL_CONTEXT_TERMS)
+    describes_breakage = "works locally" in prompt or (
+        contains_any(prompt, {"break", "breaks", "broken", "failing", "fails", "not working"})
+        and has_operational_context
+    )
+    return has_debug_terms and (has_operational_context or describes_breakage)
+
+
 def classify_prefilter(signals: SignalProfile) -> PrefilterState:
     prompt = signals.normalized
 
@@ -388,6 +439,9 @@ def evaluate_uncertainty(
     if contains_any(prompt, {"help", "something"}) and signals.word_count <= 7:
         score += 0.15
         reasons.append("Prompt asks for help without enough topical detail.")
+    if prefilter.label == "ambiguous" and looks_like_ambiguous_debug_prompt(signals):
+        score += 0.25
+        reasons.append("Ambiguous prompt describes a real-world debugging issue without enough system context.")
     if (
         prefilter.label == "ambiguous"
         and signals.has_reasoning_terms

@@ -664,22 +664,30 @@ body {
 
 .options-menu {
     position: absolute;
-    top: calc(100% + 10px);
+    top: calc(100% + 8px);
     left: 0;
-    display: none;
+    display: flex;
     flex-direction: column;
-    gap: 8px;
-    min-width: 144px;
-    padding: 10px;
-    border-radius: 16px;
+    gap: 6px;
+    min-width: 124px;
+    padding: 8px;
+    border-radius: 14px;
     background: rgba(30, 31, 32, 0.98);
     border: 1px solid var(--border-color);
     box-shadow: 0 12px 24px rgba(0,0,0,0.35);
     z-index: 30;
+    opacity: 0;
+    transform: translateY(-6px);
+    pointer-events: none;
+    visibility: hidden;
+    transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s ease;
 }
 
 .options-menu.open {
-    display: flex;
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+    visibility: visible;
 }
 
 .model-selector {
@@ -894,15 +902,16 @@ body {
     background: transparent;
     border: 1px solid var(--border-color);
     color: var(--text-secondary);
-    border-radius: 16px;
-    padding: 10px 14px;
-    font-size: 13px;
+    border-radius: 12px;
+    padding: 9px 12px;
+    font-size: 12px;
     font-weight: 500;
     font-family: var(--font-family);
     cursor: pointer;
     transition: all 0.2s ease;
     width: 100%;
     text-align: left;
+    white-space: nowrap;
 }
 .action-text-btn:hover {
     background: rgba(255, 255, 255, 0.05);

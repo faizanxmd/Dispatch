@@ -5,6 +5,7 @@ from queue import Empty
 
 from backend.model import (
     BedrockInvocationError,
+    CLAUDE_SONNET_MODEL_ID,
     NOVA_PRO_MODEL_ID,
     SONNET_46_BENCHMARK_DISPLAY_NAME,
     SONNET_46_BENCHMARK_MODEL_ID,
@@ -17,6 +18,13 @@ from backend.routing_pipeline import build_decision
 
 logger = logging.getLogger(__name__)
 MODEL_CALL_TIMEOUT_SECONDS = float(os.getenv("ROUTER_MODEL_CALL_TIMEOUT_SECONDS", "20"))
+STRONG_MODEL_CALL_TIMEOUT_SECONDS = float(os.getenv("ROUTER_STRONG_MODEL_CALL_TIMEOUT_SECONDS", "30"))
+
+
+def _get_timeout_seconds(model_id: str) -> float:
+    if model_id == CLAUDE_SONNET_MODEL_ID:
+        return max(MODEL_CALL_TIMEOUT_SECONDS, STRONG_MODEL_CALL_TIMEOUT_SECONDS)
+    return MODEL_CALL_TIMEOUT_SECONDS
 
 
 def _model_call_worker(result_queue, model_id: str, prompt: str, refinement: str) -> None:
@@ -50,6 +58,7 @@ def _model_call_worker(result_queue, model_id: str, prompt: str, refinement: str
 
 
 def _call_model_with_timeout(model_id: str, prompt: str, refinement: str) -> dict:
+    timeout_seconds = _get_timeout_seconds(model_id)
     ctx = multiprocessing.get_context("spawn")
     result_queue = ctx.Queue(maxsize=1)
     process = ctx.Process(
@@ -58,7 +67,7 @@ def _call_model_with_timeout(model_id: str, prompt: str, refinement: str) -> dic
     )
     process.start()
     try:
-        message = result_queue.get(timeout=MODEL_CALL_TIMEOUT_SECONDS)
+        message = result_queue.get(timeout=timeout_seconds)
     except Empty:
         process.terminate()
         process.join(timeout=2)
@@ -68,8 +77,8 @@ def _call_model_with_timeout(model_id: str, prompt: str, refinement: str) -> dic
                 "model_id": model_id,
                 "invoked_model_id": model_id,
                 "error_type": "TimeoutError",
-                "exception": f"Model execution exceeded {MODEL_CALL_TIMEOUT_SECONDS:.0f}s",
-                "timeout_seconds": MODEL_CALL_TIMEOUT_SECONDS,
+                "exception": f"Model execution exceeded {timeout_seconds:.0f}s",
+                "timeout_seconds": timeout_seconds,
             },
         )
     finally:
