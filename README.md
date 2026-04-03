@@ -1,20 +1,16 @@
 # Dispatch AI
 
-Dispatch AI is an explainable multi-model routing system built with FastAPI and AWS Bedrock. It routes prompts across multiple foundation models based on task type, complexity, ambiguity, and cost, while exposing the routing path, latency, token usage, and savings in the UI.
+Dispatch AI is a multi-model routing system built for **HACK 'A' WAR 2026** at **MSRIT**. It uses FastAPI and AWS Bedrock to route prompts across different foundation models based on task type, complexity, ambiguity, and cost.
 
-Built with teammates for **HACK 'A' WAR 2026** at **MSRIT**.
-
-## Resume-Friendly Description
-
-Dispatch AI is a cost-aware multi-model inference system that routes prompts across Bedrock models using deterministic rules, ambiguity scoring, and Qwen-assisted classification. It includes a FastAPI backend, a built-in frontend, model fallback handling, and live analytics for routing transparency.
+This repository reflects the shared hackathon project build.
 
 ## What It Does
 
-- Routes prompts to different Bedrock models instead of using one model for everything
-- Uses Qwen only when a prompt is ambiguous enough to justify classification
-- Tracks latency, tokens, model choice, routing path, and pricing
-- Exposes both router-selected and actually served models when fallback happens
-- Serves the frontend and backend from one FastAPI app
+- routes prompts across multiple Bedrock models instead of using one model for everything
+- uses Qwen only when a prompt is ambiguous enough to justify classification
+- tracks routing path, latency, token usage, and pricing
+- exposes both the router-selected model and the actually served model when fallback happens
+- serves the frontend and backend from one FastAPI app
 
 ## Model Stack
 
@@ -29,11 +25,11 @@ Dispatch AI is a cost-aware multi-model inference system that routes prompts acr
 ## Tech Stack
 
 - FastAPI
-- AWS Bedrock
 - Python
+- AWS Bedrock
 - HTML, CSS, JavaScript
 
-## Quick Start
+## Run Locally
 
 ```bash
 git clone https://github.com/faizanxmd/hackathon.git
@@ -52,7 +48,7 @@ export AWS_SECRET_ACCESS_KEY=YOUR_SECRET_ACCESS_KEY
 export AWS_SESSION_TOKEN=YOUR_SESSION_TOKEN
 ```
 
-Then start the app:
+Start the app:
 
 ```bash
 ./run_dispatch.sh
@@ -106,35 +102,8 @@ The response includes:
 - token metadata
 - pricing and savings metadata
 
-## Project Structure
-
-```text
-hackathon/
-├── backend/
-│   ├── main.py
-│   ├── model.py
-│   ├── router.py
-│   ├── routing_pipeline.py
-│   └── requirements.txt
-├── frontend/
-│   ├── index.html
-│   ├── analytics.html
-│   ├── history.html
-│   ├── models.html
-│   ├── profile.html
-│   ├── settings.html
-│   ├── script.js
-│   └── style.css
-├── render.yaml
-└── run_dispatch.sh
-```
-
 ## Notes
 
-- If you only see `{"status":"Backend running"}`, open `/app/` instead of `/`
+- if you only see `{"status":"Backend running"}`, open `/app/` instead of `/`
 - Bedrock access must be enabled in your AWS account for the models used here
 - `AWS_SESSION_TOKEN` is only needed for temporary credentials
-
-## Postmortem
-
-[POSTMORTEM.md](POSTMORTEM.md)
