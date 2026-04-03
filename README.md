@@ -1,8 +1,16 @@
 # Dispatch AI
 
-Dispatch AI is a FastAPI app with a built-in frontend for explainable multi-model routing on AWS Bedrock.
+Dispatch AI is a personal project for explainable multi-model routing on AWS Bedrock. It combines a FastAPI backend with a built-in frontend to route prompts across multiple models based on task, complexity, uncertainty, and cost.
 
 Repo: [https://github.com/faizanxmd/hackathon](https://github.com/faizanxmd/hackathon)
+
+## Why I Built It
+
+This started as a hackathon project, but the core idea is still useful:
+
+- route prompts to the cheapest model that can still do the job well
+- make routing decisions visible instead of hiding them behind a single chatbot response
+- track latency, token usage, and savings so model choice is measurable
 
 ## What It Does
 
@@ -10,6 +18,16 @@ Repo: [https://github.com/faizanxmd/hackathon](https://github.com/faizanxmd/hack
 - Uses Qwen only when a prompt is ambiguous enough to need classification
 - Tracks latency, token usage, routing path, and savings
 - Serves both the API and the frontend from one FastAPI app
+
+## Current Status
+
+The project is working as a local full-stack app and is useful as:
+
+- a personal playground for Bedrock routing experiments
+- a portfolio project for multi-model inference systems
+- a base for future product ideas around cost-aware AI routing
+
+Postmortem: [POSTMORTEM.md](POSTMORTEM.md)
 
 ## Model Stack
 
@@ -174,6 +192,14 @@ If Bedrock calls fail:
 - confirm your AWS credentials are valid
 - confirm the Bedrock models are enabled in your AWS account
 - confirm your region matches the enabled models
+
+## Next Steps
+
+- deploy the app to a stable public host
+- add authentication and saved user workspaces
+- improve long-term analytics and usage tracking
+- tune routing based on real user feedback instead of only heuristics
+- expand file support beyond text prompts
 
 ## Deploy
 
