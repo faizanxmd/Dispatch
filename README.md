@@ -5,7 +5,7 @@ Dispatch AI is a multi-model routing system built for **HACK 'A' WAR 2026** at *
 This repository reflects the shared hackathon project build. 
 MADE BY:
 FAIZAN
-
+SANNIDHI R DEVADIGA 
 
 ## What It Does
 
