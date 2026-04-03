@@ -6,7 +6,7 @@ This repository reflects the shared hackathon project build.
 MADE BY:
 FAIZAN
 SANNIDHI R DEVADIGA 
-
+SAMYAK SHANKAR
 ## What It Does
 
 - routes prompts across multiple Bedrock models instead of using one model for everything
