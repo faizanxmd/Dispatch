@@ -7,6 +7,7 @@ MADE BY:
 FAIZAN
 SANNIDHI R DEVADIGA 
 SAMYAK SHANKAR
+RANJITH
 ## What It Does
 
 - routes prompts across multiple Bedrock models instead of using one model for everything
