@@ -2,7 +2,10 @@
 
 Dispatch AI is a multi-model routing system built for **HACK 'A' WAR 2026** at **MSRIT**. It uses FastAPI and AWS Bedrock to route prompts across different foundation models based on task type, complexity, ambiguity, and cost.
 
-This repository reflects the shared hackathon project build.
+This repository reflects the shared hackathon project build. 
+MADE BY:
+FAIZAN
+
 
 ## What It Does
 
