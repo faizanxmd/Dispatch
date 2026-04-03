@@ -16,6 +16,21 @@ RANJITH
 - exposes both the router-selected model and the actually served model when fallback happens
 - serves the frontend and backend from one FastAPI app
 
+## Screenshots
+
+<p align="center">
+  <img src="assets/screenshots/home-dashboard.png" alt="Dispatch AI home dashboard" width="900">
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/routing-details.png" alt="Dispatch AI routing details panel" width="320">
+  <img src="assets/screenshots/analytics-overview.png" alt="Dispatch AI analytics overview cards" width="620">
+</p>
+
+<p align="center">
+  <img src="assets/screenshots/analytics-summary.png" alt="Dispatch AI analytics summary strip" width="900">
+</p>
+
 ## Model Stack
 
 - Amazon Nova Micro
